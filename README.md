@@ -1,5 +1,5 @@
-# Avast
-time-domain variations of stellar spectra
+# **Avast**
+A playground for exploring time-domain variations in stellar spectra.
 
 ## Authors
 - **David W. Hogg** (NYU) (MPIA)
