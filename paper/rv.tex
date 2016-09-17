@@ -1,0 +1,35 @@
+\documentclass[12pt, letterpaper]{article}
+
+\newcommand{\acronym}[1]{{\small{#1}}}
+\newcommand{\project}[1]{\textsl{#1}}
+\newcommand{\tgas}{\project{\acronym{T-GAS}}}
+
+\newcommand{\dd}{\mathrm{d}}
+
+\setlength{\parindent}{1.0\baselineskip}
+\linespread{1.09}
+\raggedbottom
+\sloppy
+\sloppypar
+\frenchspacing
+
+\begin{document}
+
+Hello World!
+\begin{eqnarray}
+  y_{nm} &=& \mu(\lambda_m; \Delta v_n) + \mathrm{noise}
+  \\
+  \mu(\lambda; \Delta v) &=& \mu_0(\lambda)
+  + \left.\frac{\dd \mu_0}{\dd\lambda}\right|_{v}\,\frac{\dd\lambda}{\dd v}\,\Delta v
+  + \left.\frac{\dd \mu_0}{\dd v}\right|_{\lambda}\,\Delta v
+  \\
+  \mu_0(\lambda) &=& \sum_{k=0}^{K-1} a_k\,g_k(\lambda)
+  \\
+  \left.\frac{\dd \mu_0}{\dd\lambda}\right|_{v} &=& \sum_{k=0}^{K-1} a_k\,\frac{\dd g_k}{\dd\lambda}
+  \\
+  \left.\frac{\dd \mu_0}{\dd v}\right|_{\lambda} &=& \sum_{k=0}^{K-1} b_k\,g_k(\lambda)
+  \quad ,
+\end{eqnarray}
+where [something]
+
+\end{document}
