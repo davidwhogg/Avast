@@ -2,7 +2,7 @@
 
 \newcommand{\acronym}[1]{{\small{#1}}}
 \newcommand{\project}[1]{\textsl{#1}}
-\newcommand{\tgas}{\project{\acronym{T-GAS}}}
+\newcommand{\Avast}{\project{Avast}}
 
 \newcommand{\dd}{\mathrm{d}}
 
@@ -14,6 +14,66 @@
 \frenchspacing
 
 \begin{document}
+
+\section*{\Avast: A data-driven method for obtaining extremely precise stellar radial velocities}
+
+\noindent
+by DWH, others
+
+\paragraph{Abstract:}
+In the best radial-velocity experiments, stellar
+spectroscopic data are taken with continuously calibrated hardware,
+spectra are extracted with very good wavelength solutions, and radial
+velocities are determined by cross-correlation with templates.
+These approaches have delivered great science---including many
+hundreds of planet discoveries---at the meter-per-second level of
+precision.
+We expect to find far more science---including truly Earth-like
+planets around truly Sun-like stars---when these integrated
+hardware--software systems deliver centimeter-per-second-ish
+precision.
+Here we propose a methodological and software component for this new
+era of precision: \Avast, a data-driven method for determining
+radial velocities from a set of multiple spectra taken with the same
+instrument over multiple epochs.
+\Avast\ takes a data-driven approach to the radial-velocity
+measurement; it delivers only relative velocities, not absolute
+velocities, but it does so at nearly the Cram\'er--Rao bound.
+Importantly, \Avast\ is capable of locating and modeling changes in
+the stellar spectrum that are covariant with velocity.
+That is, if some component of a star's apparent velocity shifts are
+not due to stellar radial velocity but simply surface convection,
+activity, sunspots, or rotation, and these surface effects create
+spectral changes that go beyond pure velocity shifts, \Avast\ can find
+them and exploit them to improve radial-velocity measurements.
+The fundamental technology underlying \Avast\ is regression.
+
+\section{Assumptions and method}
+
+The most important assumptions we make in this work are the following:
+\begin{itemize}\itemsep=0ex
+\item There are $N$ multiple extracted spectra of the same star, taken
+  at (fictitious) Solar-System barycentric times (epochs) $t_n$. Each
+  of these spectra has been continuum normalized properly, and is
+  represented on a grid of $M$ wavelength pixels $\lambda_m$ in the
+  (fictitious) Solar-System barycentric rest frame.
+\item At each pixel $m$ of each spectrum $n$ there is Gaussian noise,
+  drawn from a distribution with zero mean and known variance
+  $\sigma^2_{nm}$.
+\item At each epoch $n$, there is a true radial velocity displacement
+  $\Delta v_n$ of the (center of mass of the) star, and also some kind
+  of spectral distortion.  That is, there is a Doppler shift and a
+  spectral change at every epoch.
+\item We expect the spetral distortions to be sparse in
+  wavelength-space.  That is, we expect only some, isolated lines to
+  participate in any distortion.
+\item In the long run (that is, as the number $N$ of epochs grows
+  large), there cannot be any true covariance between the spectral
+  distortion and the true velocity of the (center of mass of the)
+  star. That is, any observed correlation between the spectral
+  distortion and the radial velocity must be caused by some kind of
+  effect at the stellar surface.
+\end{itemize}
 
 Hello World!
 \begin{eqnarray}
