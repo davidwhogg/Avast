@@ -4,7 +4,16 @@
 \newcommand{\project}[1]{\textsl{#1}}
 \newcommand{\Avast}{\project{Avast}}
 
+\newcommand{\unit}[1]{\mathrm{#1}}
+\newcommand{\m}{\unit{m}}
+\newcommand{\s}{\unit{s}}
+\newcommand{\mps}{\m\,\s^{-1}}
+
 \newcommand{\dd}{\mathrm{d}}
+\newcommand{\given}{\,|\,}
+\newcommand{\normal}{{\mathcal{N}}}
+\newcommand{\com}{\mathrm{cm}}
+\newcommand{\surf}{\mathrm{sf}}
 
 \setlength{\parindent}{1.0\baselineskip}
 \linespread{1.09}
@@ -46,7 +55,61 @@ not due to stellar radial velocity but simply surface convection,
 activity, sunspots, or rotation, and these surface effects create
 spectral changes that go beyond pure velocity shifts, \Avast\ can find
 them and exploit them to improve radial-velocity measurements.
-The fundamental technology underlying \Avast\ is regression.
+The fundamental technology underlying \Avast\ is probabilistic
+(Bayesian) regression, with some hierarchical parameters.
+
+\section{Introduction}
+
+There is a remarkable collection of spectrographs and data-analysis
+pipelines being used for exoplanet discovery and characterization.
+They routinely produce radial-velocity measurements with a precision,
+or scatter about the mean, of about $1\,\mps$.
+Why not better?
+If you compute the Cram\'er-Rao bound for typical spectra, it is much
+more precise than this; that is, we have the photons and the spectral
+features to do better.
+
+One thing we have shown (unpublished, except in blog posts) is that
+the problem with these spectrographs is \emph{not} in the software
+pipelines.
+That is, we can show that spectral calibration and extraction is not
+what is causing the precision loss relative to the bounds.
+This means that either the problem is in the hardware upstream of the
+detector readout, or else in the atmosphere, interstellar medium, or
+the star itself.
+This project was motivated by the question: Can we improve radial
+velocity measurements if the radial-velocity noise is being generated
+by the star itself?
+That is, can we separate star-generated radial-velocity noise from
+true radial-velocity variations of the stellar center of mass?
+(In what follows, we will try to be clear that we are talking about
+the star's center of mass, not the center of mass of the planetary or
+stellar system of which the star is a part; that latter center of mass
+doesn't accelerate much!)
+Some of what we do will also apply to certain kinds of atmospheric or
+instrumental effects, as we will note below.
+
+Imagine that we are trying to make precise measurements of a stellar
+velocity, by taking a precise spectrum of a stellar surface,
+integrated over the stellar disk visible to us during the
+spectroscopic exposure.
+Because the star is convective at its surface with a finite number (or
+size) of convection cells, and because the star is oscillating,
+rotating, showing star spots, and flaring, the velocity we measure
+will not be as cleanly related to the center-of-mass motion of the
+star as we would like.
+What we really measure is a superposition of the stellar
+center-of-mass velocity and a mean surface-velocity anomaly, where the
+relevant mean is taken by integrating over the visible-to-us surface
+of the star for the duration of the exposure, in the bandpass of the
+spectrograph (and so on).
+
+It might seem like this surface-velocity anomaly is an intractably
+confusing source of noise.
+However, if the anomaly is created by a physical process in or near
+the surface of the star, it is probably---only probably, I'm
+afraid---also associated with a spectral change that goes beyond pure
+Doppler Shift.
 
 \section{Assumptions and method}
 
@@ -56,7 +119,9 @@ The most important assumptions we make in this work are the following:
   at (fictitious) Solar-System barycentric times (epochs) $t_n$. Each
   of these spectra has been continuum normalized properly, and is
   represented on a grid of $M$ wavelength pixels $\lambda_m$ in the
-  (fictitious) Solar-System barycentric rest frame.
+  (fictitious) Solar-System barycentric rest frame. We assume (perhaps
+  naively) that both the times $t_n$ and wavelengths $\lambda_m$ are
+  very precisely known.
 \item At each pixel $m$ of each spectrum $n$ there is Gaussian noise,
   drawn from a distribution with zero mean and known variance
   $\sigma^2_{nm}$.
@@ -80,17 +145,21 @@ The most important assumptions we make in this work are the following:
 
 Hello World!
 \begin{eqnarray}
-  y_{nm} &=& \mu(\lambda_m; \Delta v_n) + \mathrm{noise}
+  y_{nm} &=& \mu(\lambda_m; \Delta_n) + \mathrm{scatter} + \mathrm{noise}
   \\
-  \mu(\lambda; \Delta v) &=& \mu_0(\lambda)
-  + \left.\frac{\dd \mu_0}{\dd\lambda}\right|_{v}\,\frac{\dd\lambda}{\dd v}\,\Delta v
-  + \left.\frac{\dd \mu_0}{\dd v}\right|_{\lambda}\,\Delta v
+  \mu(\lambda; \Delta) &=& \mu_0(\lambda)
+  - \frac{\lambda}{c}\,\left.\frac{\dd \mu}{\dd\lambda}\right|_{v}\,[\Delta_\com + \Delta_\surf]
+  + \left.\frac{\dd \mu}{\dd v_\surf}\right|_{\lambda}\,[\Delta_\surf]
   \\
   \mu_0(\lambda) &=& \sum_{k=0}^{K-1} a_k\,g_k(\lambda)
   \\
-  \left.\frac{\dd \mu_0}{\dd\lambda}\right|_{v} &=& \sum_{k=0}^{K-1} a_k\,\frac{\dd g_k}{\dd\lambda}
+  \left.\frac{\dd \mu}{\dd\lambda}\right|_{v} &=& \sum_{k=0}^{K-1} a_k\,\frac{\dd g_k}{\dd\lambda}
   \\
-  \left.\frac{\dd \mu_0}{\dd v}\right|_{\lambda} &=& \sum_{k=0}^{K-1} b_k\,g_k(\lambda)
+  \left.\frac{\dd \mu}{\dd v_\surf}\right|_{\lambda} &=& \sum_{k=0}^{K-1} b_k\,g_k(\lambda)
+  \\
+  \Delta_\com &=& h(t; \omega)
+  \\
+  p(\Delta_\surf \given V_\surf) &=& \normal(\Delta_\surf \given 0, V_\surf)
   \quad ,
 \end{eqnarray}
 where [something]
