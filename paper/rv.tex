@@ -124,44 +124,77 @@ The most important assumptions we make in this work are the following:
   very precisely known.
 \item At each pixel $m$ of each spectrum $n$ there is Gaussian noise,
   drawn from a distribution with zero mean and known variance
-  $\sigma^2_{nm}$.
+  $\sigma^2_{mn}$.
 \item At each epoch $n$, there is a true radial velocity displacement
-  $\Delta v_n$ of the (center of mass of the) star, and also some kind
-  of spectral distortion.  That is, there is a Doppler shift and a
-  spectral change at every epoch.
-\item We expect the spectral distortions to be sparse in
-  wavelength-space.  That is, we expect only a few, isolated lines to
-  participate in any distortion.
-\item In the long run (that is, as the number $N$ of epochs grows
-  large), there cannot be any true covariance between the spectral
-  distortion and the true velocity of the (center of mass of the)
-  star. That is, any observed correlation between the spectral
-  distortion and the radial velocity must be caused by some kind of
-  effect at the stellar surface. More specifically, we expect the
-  center-of-mass velocity to be set by some kind of kinematic or
-  dynamical model (such as the two-body problem) and any
-  distortions to be set by some kind of stochastic process.
+  $\Delta v_{\com,n}$ of the (center of mass of the) star, a true
+  (integrated, visible-to-the-spectrograph) radial-velocity
+  displacement $\Delta v_{\surf,n}$ of the surface of thes star, and
+  also some kind of spectral distortion.  That is, there is a
+  composite Doppler shift and a spectral change at every epoch.
+\item We expect some aspects of the spectral distortions to be sparse
+  in wavelength-space.  That is, we expect only a few, isolated lines
+  to participate in (say) the surface-velocity-related distortion.
+\item We expect other aspects of the spectral distortions to be low
+  rank; these might be caused by systematic problems in the
+  spectrograph, or in the continuum normalization procedures.
+\item We expect that the center-of-mass velocity is set by some kind
+  of kinematic or dynamical model (such as the two-body orbit problem)
+  and any distortions to be set by some kind of stochastic process.
 \end{itemize}
 
-Hello World!
+Our model (likelihood) is described by
 \begin{eqnarray}
-  y_{nm} &=& \mu(\lambda_m; \Delta_n) + \mathrm{scatter} + \mathrm{noise}
+  y_{mn} &=& f(\lambda'_{mn}) + h(\lambda'_{mn})\,\beta_{\surf, n} + \mathrm{systematics}_{mn} + \mathrm{noise}_{mn}
   \\
-  \mu(\lambda; \Delta) &=& \mu_0(\lambda)
-  - \frac{\lambda}{c}\,\left.\frac{\dd \mu}{\dd\lambda}\right|_{v}\,[\Delta_\com + \Delta_\surf]
-  + \left.\frac{\dd \mu}{\dd v_\surf}\right|_{\lambda}\,[\Delta_\surf]
+  \lambda'_{mn} &=& \lambda_m\,\sqrt{\frac{1 - \beta_n}{1 + \beta_n}}
   \\
-  \mu_0(\lambda) &=& \sum_{k=0}^{K-1} a_k\,g_k(\lambda)
+  \beta_n &=& \beta_{\com,n} + \beta_{\surf, n}
   \\
-  \left.\frac{\dd \mu}{\dd\lambda}\right|_{v} &=& \sum_{k=0}^{K-1} a_k\,\frac{\dd g_k}{\dd\lambda}
+  \beta &\equiv& \frac{\Delta v}{c}
+  \quad , 
+\end{eqnarray}
+where the $y_{mn}$ is the continuum-normalized flux in pixel $m$ of
+spectrum $n$, $f()$ and $h()$ are functions of
+wavelength,$\lambda'_{mn}$ is the stellar rest-frame wavelength
+corresponding to the barycentric wavelength $\lambda_m$ observed at
+(dimensionless) velocity $\beta_n$, and the velocity $\beta_n$ is
+composed of a center-of-mass part $\beta_{\com,n}$ and a (integrated
+apparent) surface part $\beta_{\surf,n}$.
+There are both (independent-ish, pixel) noise contributions and
+(covariant, low-rank) systematics contrributions to the observed
+signal.
+We represent or generate these functions and latent variables
+with the following:
+\begin{eqnarray}
+  f(\lambda) &=& \sum_{\ell=0}^{L-1} a_\ell\,g_\ell(\lambda)
   \\
-  \left.\frac{\dd \mu}{\dd v_\surf}\right|_{\lambda} &=& \sum_{k=0}^{K-1} b_k\,g_k(\lambda)
+  h(\lambda) &=& \sum_{\ell=0}^{L-1} b_\ell\,g_\ell(\lambda)
   \\
-  \Delta_\com &=& h(t; \omega)
+  \beta_{\com,n} &=& q(t_n; \omega)
   \\
-  p(\Delta_\surf \given V_\surf) &=& \normal(\Delta_\surf \given 0, V_\surf)
+  p(\beta_\surf \given V_\surf) &=& \normal(\beta_\surf \given 0, V_\surf)
   \quad ,
 \end{eqnarray}
-where [something]
+where the $a_\ell$ are expansion coefficients, the $g_\ell(\lambda)$
+are basis functions (perhaps compact in wavelength), $q(t;\omega)$ is
+the radial velocity expectation for a two-body orbit with orbital
+parameters $\omega$, and $V_\surf$ is a velocity variance for
+(integrated, apparent) surface motions.
+We also have both systematics and noise, which we model with covariant
+and independent Gaussians:
+\begin{eqnarray}
+  \mathrm{systematics}_{mn} &=& \sum_{t=1}{T} A_{nt}\,G_t{\lambda'_{mn}}
+  \\
+  p(A_{nt}) = \normal(A_{nt}\given 0,V_t)
+  \\
+  p(\mathrm{noise}_{mn}) &=& \normal(\mathrm{noise}_{mn}\given 0,\sigma_{mn}^2)
+  \quad ,
+\end{eqnarray}
+where the $A_{nt}$ are systematic noise amplitudes drawn from a
+Gaussians of variance $V_t$, the $G_{t}()$ are systematics functions
+(eigenfunctions, perhaps), and the pixel noise is all drawn
+independently (but heteroskedastically).
+
+Rock it.
 
 \end{document}
