@@ -35,12 +35,11 @@ spectroscopic data are taken with continuously calibrated hardware,
 spectra are extracted with very good wavelength solutions, and radial
 velocities are determined by cross-correlation with templates.
 These approaches have delivered great science---including many
-hundreds of planet discoveries---at the meter-per-second level of
-precision.
+hundreds of planet discoveries---at meter-per-second precisions.
 We expect to find far more science---including truly Earth-like
 planets around truly Sun-like stars---when these integrated
 hardware--software systems deliver centimeter-per-second-ish
-precision.
+precisions.
 Here we propose a methodological and software component for this new
 era of precision: \Avast, a data-driven method for determining
 radial velocities from a set of multiple spectra taken with the same
@@ -183,9 +182,9 @@ parameters $\omega$, and $V_\surf$ is a velocity variance for
 We also have both systematics and noise, which we model with covariant
 and independent Gaussians:
 \begin{eqnarray}
-  \mathrm{systematics}_{mn} &=& \sum_{t=1}{T} A_{nt}\,G_t{\lambda'_{mn}}
+  \mathrm{systematics}_{mn} &=& \sum_{t=0}^{T-1} A_{nt}\,G_t(\lambda'_{mn})
   \\
-  p(A_{nt}) = \normal(A_{nt}\given 0,V_t)
+  p(A_{nt}\given V_t) &=& \normal(A_{nt}\given 0,V_t)
   \\
   p(\mathrm{noise}_{mn}) &=& \normal(\mathrm{noise}_{mn}\given 0,\sigma_{mn}^2)
   \quad ,
@@ -194,6 +193,12 @@ where the $A_{nt}$ are systematic noise amplitudes drawn from a
 Gaussians of variance $V_t$, the $G_{t}()$ are systematics functions
 (eigenfunctions, perhaps), and the pixel noise is all drawn
 independently (but heteroskedastically).
+Note that nothing about this model requires that the wavelength grid
+$\lambda_m$ be the same from spectrum to spectrum (that is, the
+wavelength grid can depend on $n$), and there is no requirement that
+the data at different epochs be similar in signal-to-noise. We do,
+effectively, at this point, assume that instrument resolution is
+identical (or very similar) from epoch to epoch.
 
 Rock it.
 
