@@ -1,4 +1,7 @@
 # **Avast**
+
+<img src="docs/avast.png" alt="avast" style="width: 200px;"/>
+
 A playground for exploring time-domain variations in stellar spectra.
 
 ## Authors
