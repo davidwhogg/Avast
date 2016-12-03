@@ -1,32 +1,66 @@
 import numpy as np
 from numpy import log
 import matplotlib.pyplot as plt
-from scipy.optimize import least_squares
-import pdb
+from lmfit import minimize, Parameters
 c = 3.e8
 
+def make_pars(ams0, scales0, vs0):
+    # given starting guesses, create a Parameters() object for fitting
+    pars = Parameters()
+    for i,am in enumerate(ams0):
+        pars.add('ams'+str(i), value=am)
+    for i,scale in enumerate(scales0):
+        pars.add('scales'+str(i), value=scale)
+    for i,v in enumerate(vs0):
+        pars.add('vs'+str(i), value=v)
+    return pars
+    
+def unpack_pars(pars, n_ms, n_epoch):
+    # unpack Parameters() object
+    ams = []
+    scales = []
+    vs = []
+    for i in range(n_ms):
+        name = 'ams'+str(i)
+        ams = np.append(ams, pars[name])
+    for i in range(n_epoch):
+        name = 'scales'+str(i)
+        scales = np.append(scales, pars[name])
+    for i in range(n_epoch):
+        name = 'vs'+str(i)
+        vs = np.append(vs, pars[name])
+    return ams, scales, vs
+    
+def change_par_status(pars, name, vary=False):
+    # change the fitting status of a given parameter. fixes the parameter by default.
+    if not name in ['ams','scales','vs']:
+        print "{0} is not a valid parameter.".format(name)
+        return pars
+    for par_key in pars.iterkeys():
+        if name in par_key:
+            pars[par_key].vary = vary
+    return pars
+
 def triangle(xs, xms, del_x):
-    # returns value of triangle component centered on m at location x
+    # returns values of triangle components centered on xms at location xs
     # xs & xms must be broadcastable
     return np.maximum(1. - np.abs(xs - xms)/del_x, 0.)
     
 def model(xs, xms, del_x, ams):
-    # returns value of triangle-based model at x
-    # x : ln(wavelength) at point of interest
-    # m : ln(wavelength) grid, shape (M)
-    # del_x : ln(wavelength) spacing
+    # returns values of triangle-based model at xs
+    # xs : ln(wavelength) at point(s) of interest
+    # xms : ln(wavelength) grid, shape (M)
+    # del_x : ln(wavelength) spacing of xms
     # ams : function coefficients, shape (M)
     return np.sum(ams[None,:] * triangle(xs[:,None], xms[None,:], del_x), axis=1) 
 
-def unpack_pars(pars, nspec):
-    return pars[:-2 * nspec], pars[-2 * nspec:-nspec], pars[-nspec:]
-
 def min_function(pars, xs, ys, xms, del_x):
-    # function to minimize with mpfit
-    nepoch = len(xs)
-    ams, scales, vs = unpack_pars(pars, nepoch)
+    # function to minimize
+    n_epoch = len(xs)
+    n_ms = len(xms)
+    ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
     resid = np.array([])
-    for e in range(nepoch):
+    for e in range(n_epoch):
         beta = vs[e] / c
         thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1 - beta))
         calc = model(thisxs, xms, del_x, ams * scales[e])
@@ -39,7 +73,7 @@ def show_plot(xs, obs, calc, x_plot, calc_plot):
     ax1 = fig.add_subplot(2,1,1)
     ax1.step(xs,obs, color='black')
     ax1.plot(x_plot,calc_plot, color='red')
-    ax1.set_xticklabels( () )
+    #ax1.set_xticklabels( () )
     ax2 = fig.add_subplot(2,1,2, sharex=ax1)
     ax2.step(xs,obs - calc, color='black')
     fig.subplots_adjust(hspace=0.05)
@@ -47,26 +81,34 @@ def show_plot(xs, obs, calc, x_plot, calc_plot):
   
 if __name__ == "__main__":
     wave, spec = np.loadtxt('../test_spec1.txt', unpack=True)
-    #wave2, spec2 = np.loadtxt('../test_spec2.txt', unpack=True)
+    wave2, spec2 = np.loadtxt('../test_spec2.txt', unpack=True)
     wave3, spec3 = np.loadtxt('../test_spec3.txt', unpack=True)
     lnwave = log(wave)
-    #lnwave2 = log(wave2)
+    lnwave2 = log(wave2)
     lnwave3 = log(wave3)
-    xs = [lnwave, lnwave3]
-    ys = [spec, spec3]
+    xs = [lnwave, lnwave2, lnwave3]
+    ys = [spec, spec2, spec3]
     del_x = 1.3e-5/2.0
     xms = np.arange(np.min(lnwave) - 0.5 * del_x, np.max(lnwave) + 0.99 * del_x, del_x)
     
+    # initial fit to ams & scales:
     fa = (xs, ys, xms, del_x)
-    nepoch = len(xs)
-    ams0 = np.random.normal(size=len(xms)) + np.median(ys[0])
-    vs0 = 5. * np.random.normal(size=nepoch)
-    pars0 = np.append(ams0, np.append(np.ones(nepoch), vs0))
-    foo, bar, what = unpack_pars(pars0, nepoch)
-    soln = least_squares(min_function, pars0, args=fa)
-    pars = soln.x
-    ams, scales, vs = unpack_pars(pars, nepoch)
-    for e in range(nepoch):
+    n_epoch = len(xs)
+    n_ms = len(xms)
+    ams0 = np.random.normal(size=n_ms) + np.median(ys[0])
+    scales0 = np.ones(n_epoch)
+    vs0 = 5. * np.random.normal(size=n_epoch)
+    pars0 = make_pars(ams0, scales0, vs0)
+    pars0 = change_par_status(pars0, 'vs', vary=False)  # fix the velocities
+    soln = minimize(min_function, pars0, args=fa)
+    # second fit with velocities free:
+    pars1 = soln.params
+    pars1 = change_par_status(pars1, 'vs', vary=True)
+    soln = minimize(min_function, pars1, args=fa)
+    # look at the fit:
+    pars = soln.params
+    ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
+    for e in range(n_epoch):
         calc = model(xs[e], xms, del_x, ams * scales[e])
         x_plot = np.linspace(lnwave[0],lnwave[-1],num=1000)
         calc_plot = model(x_plot, xms, del_x, ams * scales[e])
