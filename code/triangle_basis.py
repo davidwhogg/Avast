@@ -1,8 +1,7 @@
 import numpy as np
-from numpy import log
 import matplotlib.pyplot as plt
-from lmfit import minimize, Parameters
-c = 3.e8
+from lmfit import minimize, Parameters # Hogg doesn't like lmfit
+c = 3.e8 # uh, maybe we should be more precise?
 
 def make_pars(ams0, scales0, vs0):
     # given starting guesses, create a Parameters() object for fitting
@@ -34,7 +33,7 @@ def unpack_pars(pars, n_ms, n_epoch):
 def change_par_status(pars, name, vary=False):
     # change the fitting status of a given parameter. fixes the parameter by default.
     if not name in ['ams','scales','vs']:
-        print "{0} is not a valid parameter.".format(name)
+        print("{0} is not a valid parameter.".format(name))
         return pars
     for par_key in pars.iterkeys():
         if name in par_key:
@@ -78,14 +77,14 @@ def show_plot(xs, obs, calc, x_plot, calc_plot):
     ax2.step(xs,obs - calc, color='black')
     fig.subplots_adjust(hspace=0.05)
     plt.show()
-  
+
 if __name__ == "__main__":
     wave, spec = np.loadtxt('../data/test_spec1.txt', unpack=True)
     wave2, spec2 = np.loadtxt('../data/test_spec2.txt', unpack=True)
     wave3, spec3 = np.loadtxt('../data/test_spec3.txt', unpack=True)
-    lnwave = log(wave)
-    lnwave2 = log(wave2)
-    lnwave3 = log(wave3)
+    lnwave = np.log(wave)
+    lnwave2 = np.log(wave2)
+    lnwave3 = np.log(wave3)
     xs = [lnwave, lnwave2, lnwave3]
     ys = [spec, spec2, spec3]
     del_x = 1.3e-5/2.0
