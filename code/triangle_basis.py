@@ -80,9 +80,9 @@ def show_plot(xs, obs, calc, x_plot, calc_plot):
     plt.show()
   
 if __name__ == "__main__":
-    wave, spec = np.loadtxt('../test_spec1.txt', unpack=True)
-    wave2, spec2 = np.loadtxt('../test_spec2.txt', unpack=True)
-    wave3, spec3 = np.loadtxt('../test_spec3.txt', unpack=True)
+    wave, spec = np.loadtxt('../data/test_spec1.txt', unpack=True)
+    wave2, spec2 = np.loadtxt('../data/test_spec2.txt', unpack=True)
+    wave3, spec3 = np.loadtxt('../data/test_spec3.txt', unpack=True)
     lnwave = log(wave)
     lnwave2 = log(wave2)
     lnwave3 = log(wave3)
