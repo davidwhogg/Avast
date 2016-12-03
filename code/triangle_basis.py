@@ -1,3 +1,7 @@
+"""
+This file is part of the Avast project.
+Copyright 2016 Megan Bedell (Chicago).
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters # Hogg doesn't like lmfit
