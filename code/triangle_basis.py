@@ -100,7 +100,7 @@ if __name__ == "__main__":
     n_ms = len(xms)
     ams0 = np.random.normal(size=n_ms) + np.median(ys[0])
     scales0 = np.ones(n_epoch)
-    vs0 = np.random.normal(size=n_epoch) + 20.0
+    vs0 = np.random.normal(size=n_epoch) * 5.0
     pars0 = make_pars(ams0, scales0, vs0)
     pars0 = change_par_status(pars0, 'vs', vary=False)  # fix the velocities
     soln = minimize(min_function, pars0, args=fa)
@@ -111,6 +111,7 @@ if __name__ == "__main__":
     # look at the fit:
     pars = soln.params
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
+    
     '''''
     for e in range(n_epoch):
         calc = model(xs[e], xms, del_x, ams * scales[e])
@@ -121,20 +122,15 @@ if __name__ == "__main__":
         
     # plotting objective function with starting RV for Hogg:
     pars2 = soln.params
-    pars2 = change_par_status(pars2, 'ams', vary=False)
-    pars2 = change_par_status(pars2, 'scales', vary=False) 
-    star_v1 = np.linspace(-20.,30.,500)
+    star_v1 = np.linspace(-20.,20.,500)
     obj = []  # objective function
     for v in star_v1:
         pars2['vs0'].value = v
-        soln = minimize(min_function, pars2, args=fa)
-        resids = min_function(soln.params, xs, ys, xms, del_x)
+        resids = min_function(pars2, xs, ys, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
-        print "starting v0: {0:.2f}".format(v)
-        print "velocities: {0:.2f}, {1:.2f}, {2:.2f}".format(soln.params['vs0'].value, 
-                        soln.params['vs1'].value, soln.params['vs2'].value)
     plt.clf()
     plt.plot(star_v1,obj)
-    plt.xlabel('starting RV guess (first epoch)')
+    plt.xlabel('starting RV guess (first epoch, m/s)')
     plt.ylabel('objective function')
     plt.savefig('objectivefn.png')
+
