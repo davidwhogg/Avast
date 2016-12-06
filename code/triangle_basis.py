@@ -4,6 +4,7 @@ Copyright 2016 Megan Bedell (Chicago).
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from scipy.optimize import leastsq
 c = 2.99792458e8
 
@@ -41,16 +42,35 @@ def min_function(pars, xs, ys, xms, del_x):
         resid = np.append(resid,(ys[e] - calc) / err)
     return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
     
-def show_plot(xs, obs, calc, x_plot, calc_plot):
+def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
+    xs = np.e**xs
+    x_plot = np.e**x_plot
     fig = plt.figure()
+
     ax1 = fig.add_subplot(2,1,1)
-    ax1.step(xs,obs, color='black')
-    ax1.plot(x_plot,calc_plot, color='red')
-    #ax1.set_xticklabels( () )
-    ax2 = fig.add_subplot(2,1,2, sharex=ax1)
+    ax1.step(xs,obs, color='black', label='Observed')
+    ax1.plot(x_plot,calc_plot, color='red', label='Calculated')
+    ax1.set_ylabel('Flux')
+    #ax1.legend()
+    ax1.set_xticklabels( () )
+    ax2 = fig.add_subplot(2,1,2)
     ax2.step(xs,obs - calc, color='black')
+    ax2.set_ylabel('(O-C)')
+    ax2.ticklabel_format(useOffset=False)
+    ax2.set_xlabel(r'Wavelength ($\AA$)')
+    majorLocator = MultipleLocator(1)
+    minorLocator = MultipleLocator(0.1)
+    ax1.xaxis.set_minor_locator(minorLocator)
+    ax1.xaxis.set_major_locator(majorLocator)
+    ax2.xaxis.set_minor_locator(minorLocator)
+    ax2.xaxis.set_major_locator(majorLocator)
+    majorLocator = MultipleLocator(5000)
+    ax1.yaxis.set_major_locator(majorLocator)
+    majorLocator = MultipleLocator(200)
+    ax2.yaxis.set_major_locator(majorLocator)
+    ax2.set_ylim([-500,500])
     fig.subplots_adjust(hspace=0.05)
-    plt.show()
+    plt.savefig(save_name)
 
 if __name__ == "__main__":
     wave, spec = np.loadtxt('../data/test_spec1.txt', unpack=True)
@@ -79,27 +99,57 @@ if __name__ == "__main__":
     pars = soln[0]
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
     
-
+    '''''
     for e in range(n_epoch):
         calc = model(xs[e], xms, del_x, ams * scales[e])
-        x_plot = np.linspace(lnwave[0],lnwave[-1],num=1000)
+        x_plot = np.linspace(lnwave[0],lnwave[-1],num=5000)
         calc_plot = model(x_plot, xms, del_x, ams * scales[e])
-        show_plot(xs[e], ys[e], calc, x_plot, calc_plot)
+        save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
 
-     
-    # plotting objective function with leastsq tolerance:
+    ''''' 
+    # plotting objective function with various parameters:
+    tmp_pars = np.copy(pars)
     obj = []  # objective function
-    all_ftol = []
-    for i in range(10):
-        soln = leastsq(min_function, pars, args=fa, ftol=ftol)
-        resids = min_function(soln[0], xs, ys, xms, del_x)
+    a20 = []
+    for a in np.linspace(ams[20]-100.,ams[20]+100.,100):
+        tmp_pars[20] = a
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
-        ftol = ftol/10.  # tighten tolerance
-        all_ftol = np.append(all_ftol, ftol)
+        a20 = np.append(a20,a)
     plt.clf()
-    plt.plot(all_ftol,obj)
-    plt.xscale('log')
-    plt.xlabel('ftol')
+    plt.plot(a20,obj)
+    plt.xlabel(r'a$_{20}$')
     plt.ylabel('objective function')
-    plt.savefig('objectivefn_ftol.png')
-
+    plt.savefig('objectivefn_a20.png')
+    plt.clf()
+    
+    tmp_pars = np.copy(pars)
+    obj = []  # objective function
+    scale0 = []
+    for s in np.linspace(scales[0]*0.99,scales[0]*1.01,100):
+        tmp_pars[n_ms] = s
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        scale0 = np.append(scale0,s)
+    plt.clf()
+    plt.plot(scale0,obj)
+    plt.xlabel(r'scale$_{0}$')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_scale0.png')
+    plt.clf()
+    
+    tmp_pars = np.copy(pars)    
+    obj = []  # objective function
+    v0 = []
+    for v in np.linspace(vs[0]*0.95,vs[0]*1.05,100):
+        tmp_pars[n_ms+n_epoch] = v
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        v0 = np.append(v0,v)
+    plt.clf()
+    plt.plot(v0,obj)
+    plt.xlabel(r'v$_{0}$')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_v0.png')
+    plt.clf()
+    
