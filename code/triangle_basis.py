@@ -41,6 +41,18 @@ def min_function(pars, xs, ys, xms, del_x):
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
     return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
+    #return np.append(resid, (scales - 1.) / 0.5)
+    
+def min_function_v(vs, ams, scales, xs, ys, xms, del_x):
+    # function to minimize - ams and scales fixed, velocities only
+    resid = np.array([])
+    for e in range(n_epoch):
+        beta = vs[e] / c
+        thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1 - beta))
+        calc = model(thisxs, xms, del_x, ams * scales[e])
+        err = np.sqrt(ys[e])    # assumes Poisson noise 
+        resid = np.append(resid,(ys[e] - calc) / err)
+    return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
     
 def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     xs = np.e**xs
@@ -98,6 +110,11 @@ if __name__ == "__main__":
     # look at the fit:
     pars = soln[0]
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
+    print vs
+    
+    # re-optimize with vs only:
+    soln_v = leastsq(min_function_v, vs, args=(ams, scales, xs, ys, xms, del_x), ftol=ftol)
+    print soln_v[0]
     
     '''''
     for e in range(n_epoch):
@@ -109,9 +126,11 @@ if __name__ == "__main__":
     ''''' 
     # re-optimize:
     pars[n_ms+n_epoch] = 20.0
+    pars[n_ms+n_epoch+1] = -10.0
     soln2 = leastsq(min_function, pars, args=fa, ftol=ftol)
     pars2 = soln2[0]
     ams, scales, vs = unpack_pars(pars2, n_ms, n_epoch)
+    print vs
     
     
     # plotting objective function with various parameters:
