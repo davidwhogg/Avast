@@ -107,8 +107,15 @@ if __name__ == "__main__":
         save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
 
     ''''' 
+    # re-optimize:
+    pars[n_ms+n_epoch] = 20.0
+    soln2 = leastsq(min_function, pars, args=fa, ftol=ftol)
+    pars2 = soln2[0]
+    ams, scales, vs = unpack_pars(pars2, n_ms, n_epoch)
+    
+    
     # plotting objective function with various parameters:
-    tmp_pars = np.copy(pars)
+    tmp_pars = np.copy(pars2)
     obj = []  # objective function
     a20 = []
     for a in np.linspace(ams[20]-100.,ams[20]+100.,100):
@@ -118,12 +125,13 @@ if __name__ == "__main__":
         a20 = np.append(a20,a)
     plt.clf()
     plt.plot(a20,obj)
+    plt.axvline(ams[20])
     plt.xlabel(r'a$_{20}$')
     plt.ylabel('objective function')
     plt.savefig('objectivefn_a20.png')
     plt.clf()
     
-    tmp_pars = np.copy(pars)
+    tmp_pars = np.copy(pars2)
     obj = []  # objective function
     scale0 = []
     for s in np.linspace(scales[0]*0.99,scales[0]*1.01,100):
@@ -133,23 +141,24 @@ if __name__ == "__main__":
         scale0 = np.append(scale0,s)
     plt.clf()
     plt.plot(scale0,obj)
+    plt.axvline(scales[0])
     plt.xlabel(r'scale$_{0}$')
     plt.ylabel('objective function')
     plt.savefig('objectivefn_scale0.png')
     plt.clf()
     
-    tmp_pars = np.copy(pars)    
+    tmp_pars = np.copy(pars2)    
     obj = []  # objective function
     v0 = []
-    for v in np.linspace(vs[0]*0.95,vs[0]*1.05,100):
+    for v in np.linspace(vs[0]-50.,vs[0]+70.,100):
         tmp_pars[n_ms+n_epoch] = v
         resids = min_function(tmp_pars, xs, ys, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
         v0 = np.append(v0,v)
     plt.clf()
     plt.plot(v0,obj)
+    plt.axvline(vs[0])
     plt.xlabel(r'v$_{0}$')
     plt.ylabel('objective function')
     plt.savefig('objectivefn_v0.png')
     plt.clf()
-    
