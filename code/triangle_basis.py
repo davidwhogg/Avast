@@ -94,16 +94,16 @@ def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     plt.savefig(save_name)
 
 if __name__ == "__main__":
-    wave, spec = np.loadtxt('../data/test_spec1.txt', unpack=True)
-    wave2, spec2 = np.loadtxt('../data/test_spec2.txt', unpack=True)
-    wave3, spec3 = np.loadtxt('../data/test_spec3.txt', unpack=True)
-    lnwave = np.log(wave)
-    lnwave2 = np.log(wave2)
-    lnwave3 = np.log(wave3)
-    xs = [lnwave, lnwave2, lnwave3]
-    ys = [spec, spec2, spec3]
+    data_dir = '../data/quiet_star/'
+    wave, spec = np.loadtxt(data_dir+'test_spec1.txt', unpack=True)
+    wave2, spec2 = np.loadtxt(data_dir+'test_spec2.txt', unpack=True)
+    wave3, spec3 = np.loadtxt(data_dir+'test_spec3.txt', unpack=True)
+    wave4, spec4 = np.loadtxt(data_dir+'test_spec4.txt', unpack=True)
+    wave5, spec5 = np.loadtxt(data_dir+'test_spec5.txt', unpack=True)
+    xs = np.log([wave, wave2, wave3, wave4, wave5])
+    ys = [spec, spec2, spec3, spec4, spec5]
     del_x = 1.3e-5/2.0
-    xms = np.arange(np.min(lnwave) - 0.5 * del_x, np.max(lnwave) + 0.99 * del_x, del_x)
+    xms = np.arange(np.min(xs) - 0.5 * del_x, np.max(xs) + 0.99 * del_x, del_x)
     
     # initial fit to ams & scales:
     fa = (xs, ys, xms, del_x)
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     vs0 = np.random.normal(size=n_epoch) * 5.0
     pars0 = np.append(ams0, np.append(scales0, vs0))
     ftol = 1.49012e-08  # default is 1.49012e-08
-    soln = leastsq(min_function, pars0, args=fa, ftol=ftol)
+    soln = leastsq(min_function, pars0, args=fa, ftol=ftol, full_output=True)
 
     # look at the fit:
     pars = soln[0]
@@ -122,36 +122,50 @@ if __name__ == "__main__":
     resids = min_function(pars, xs, ys, xms, del_x)
     print "Initial optimization of all parameters:"
     print "Objective function value: {0}".format(np.dot(resids,resids))
+    print "nfev: {0}".format(soln[2]['nfev'])
+    print "mesg: {0}".format(soln[3])
+    print "ier: {0}".format(soln[4])
     print "Velocities:", vs
+    print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+
     
     # optimize one epoch at a time:
-    for i in [0,1,2]:
+    for i in range(n_epoch):
         pars = min_v(pars, i, xs, ys, xms, del_x)
         resids = min_function(pars, xs, ys, xms, del_x)
         ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
         print "Optimization of velocity at epoch {0}:".format(i)
         print "Objective function value: {0}".format(np.dot(resids,resids))
         print "Velocities:", vs
+        print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
         
+    
     # do it a few more times:
     pars2 = np.copy(pars)
-    for j in [2,3,4]:
-        soln = leastsq(min_function, pars2, args=fa, ftol=ftol)
+    for j in [2,3]:
+        soln = leastsq(min_function, pars2, args=fa, ftol=ftol, full_output=True)
         pars2 = soln[0]
         ams2, scales2, vs2 = unpack_pars(pars2, n_ms, n_epoch)
         resids2 = min_function(pars2, xs, ys, xms, del_x)
         print "All-parameter optimization #{0}:".format(j)
         print "Objective function value: {0}".format(np.dot(resids2,resids2))
+        print "nfev: {0}".format(soln[2]['nfev'])
+        print "mesg: {0}".format(soln[3])
+        print "ier: {0}".format(soln[4])
         print "Velocities:", vs2
+        print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+        
     
         # & loop through the epochs again:
-        for i in [0,1,2]:
+        for i in range(n_epoch):
             pars2 = min_v(pars2, i, xs, ys, xms, del_x)
             resids = min_function(pars2, xs, ys, xms, del_x)
             ams, scales, vs = unpack_pars(pars2, n_ms, n_epoch)
             print "Optimization of velocity at epoch {0}:".format(i)
             print "Objective function value: {0}".format(np.dot(resids,resids))
             print "Velocities:", vs
+            print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+            
     
     
     '''''
@@ -162,7 +176,7 @@ if __name__ == "__main__":
     
     for e in range(n_epoch):
         calc = model(xs[e], xms, del_x, ams * scales[e])
-        x_plot = np.linspace(lnwave[0],lnwave[-1],num=5000)
+        x_plot = np.linspace(np.min(xs),np.max(xs),num=5000)
         calc_plot = model(x_plot, xms, del_x, ams * scales[e])
         save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
 
