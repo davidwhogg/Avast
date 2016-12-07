@@ -36,23 +36,32 @@ def min_function(pars, xs, ys, xms, del_x):
     resid = np.array([])
     for e in range(n_epoch):
         beta = vs[e] / c
-        thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1 - beta))
+        thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1. - beta))
         calc = model(thisxs, xms, del_x, ams * scales[e])
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
     return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
-    #return np.append(resid, (scales - 1.) / 0.5)
     
-def min_function_v(vs, ams, scales, xs, ys, xms, del_x):
-    # function to minimize - ams and scales fixed, velocities only
-    resid = np.array([])
-    for e in range(n_epoch):
-        beta = vs[e] / c
-        thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1 - beta))
-        calc = model(thisxs, xms, del_x, ams * scales[e])
-        err = np.sqrt(ys[e])    # assumes Poisson noise 
-        resid = np.append(resid,(ys[e] - calc) / err)
-    return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
+def min_v(pars, i, xs, ys, xms, del_x):
+    # do a simple minimzation of just one velocity parameter
+    # i : epoch # to minimize, 0-2
+    tmp_pars = np.copy(pars)    
+    obj = []  # objective function
+    v0 = []
+    for v in np.linspace(vs[i]-50.,vs[i]+70.,100):
+        tmp_pars[n_ms+n_epoch+i] = v
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        v0 = np.append(v0,v)
+    plt.clf()
+    plt.plot(v0,obj)
+    plt.axvline(vs[i])
+    plt.xlabel('v')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_v{0}.png'.format(i))
+    v_min = v0[np.argmin(obj)]
+    tmp_pars[n_ms+n_epoch+i] = v_min
+    return tmp_pars
     
 def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     xs = np.e**xs
@@ -110,20 +119,54 @@ if __name__ == "__main__":
     # look at the fit:
     pars = soln[0]
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
-    print vs
+    resids = min_function(pars, xs, ys, xms, del_x)
+    print "Initial optimization of all parameters:"
+    print "Objective function value: {0}".format(np.dot(resids,resids))
+    print "Velocities:", vs
     
+    # optimize one epoch at a time:
+    for i in [0,1,2]:
+        pars = min_v(pars, i, xs, ys, xms, del_x)
+        resids = min_function(pars, xs, ys, xms, del_x)
+        ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
+        print "Optimization of velocity at epoch {0}:".format(i)
+        print "Objective function value: {0}".format(np.dot(resids,resids))
+        print "Velocities:", vs
+        
+    # do it a few more times:
+    pars2 = np.copy(pars)
+    for j in [2,3,4]:
+        soln = leastsq(min_function, pars2, args=fa, ftol=ftol)
+        pars2 = soln[0]
+        ams2, scales2, vs2 = unpack_pars(pars2, n_ms, n_epoch)
+        resids2 = min_function(pars2, xs, ys, xms, del_x)
+        print "All-parameter optimization #{0}:".format(j)
+        print "Objective function value: {0}".format(np.dot(resids2,resids2))
+        print "Velocities:", vs2
+    
+        # & loop through the epochs again:
+        for i in [0,1,2]:
+            pars2 = min_v(pars2, i, xs, ys, xms, del_x)
+            resids = min_function(pars2, xs, ys, xms, del_x)
+            ams, scales, vs = unpack_pars(pars2, n_ms, n_epoch)
+            print "Optimization of velocity at epoch {0}:".format(i)
+            print "Objective function value: {0}".format(np.dot(resids,resids))
+            print "Velocities:", vs
+    
+    
+    '''''
     # re-optimize with vs only:
     soln_v = leastsq(min_function_v, vs, args=(ams, scales, xs, ys, xms, del_x), ftol=ftol)
     print soln_v[0]
     
-    '''''
+    
     for e in range(n_epoch):
         calc = model(xs[e], xms, del_x, ams * scales[e])
         x_plot = np.linspace(lnwave[0],lnwave[-1],num=5000)
         calc_plot = model(x_plot, xms, del_x, ams * scales[e])
         save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
 
-    ''''' 
+    
     # re-optimize:
     pars[n_ms+n_epoch] = 20.0
     pars[n_ms+n_epoch+1] = -10.0
@@ -131,53 +174,4 @@ if __name__ == "__main__":
     pars2 = soln2[0]
     ams, scales, vs = unpack_pars(pars2, n_ms, n_epoch)
     print vs
-    
-    
-    # plotting objective function with various parameters:
-    tmp_pars = np.copy(pars2)
-    obj = []  # objective function
-    a20 = []
-    for a in np.linspace(ams[20]-100.,ams[20]+100.,100):
-        tmp_pars[20] = a
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
-        obj = np.append(obj, np.dot(resids,resids))
-        a20 = np.append(a20,a)
-    plt.clf()
-    plt.plot(a20,obj)
-    plt.axvline(ams[20])
-    plt.xlabel(r'a$_{20}$')
-    plt.ylabel('objective function')
-    plt.savefig('objectivefn_a20.png')
-    plt.clf()
-    
-    tmp_pars = np.copy(pars2)
-    obj = []  # objective function
-    scale0 = []
-    for s in np.linspace(scales[0]*0.99,scales[0]*1.01,100):
-        tmp_pars[n_ms] = s
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
-        obj = np.append(obj, np.dot(resids,resids))
-        scale0 = np.append(scale0,s)
-    plt.clf()
-    plt.plot(scale0,obj)
-    plt.axvline(scales[0])
-    plt.xlabel(r'scale$_{0}$')
-    plt.ylabel('objective function')
-    plt.savefig('objectivefn_scale0.png')
-    plt.clf()
-    
-    tmp_pars = np.copy(pars2)    
-    obj = []  # objective function
-    v0 = []
-    for v in np.linspace(vs[0]-50.,vs[0]+70.,100):
-        tmp_pars[n_ms+n_epoch] = v
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
-        obj = np.append(obj, np.dot(resids,resids))
-        v0 = np.append(v0,v)
-    plt.clf()
-    plt.plot(v0,obj)
-    plt.axvline(vs[0])
-    plt.xlabel(r'v$_{0}$')
-    plt.ylabel('objective function')
-    plt.savefig('objectivefn_v0.png')
-    plt.clf()
+    '''
