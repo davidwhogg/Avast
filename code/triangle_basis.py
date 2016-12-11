@@ -1,6 +1,6 @@
 """
 This file is part of the Avast project.
-Copyright 2016 Megan Bedell (Chicago).
+Copyright 2016 Megan Bedell (Chicago) and David W. Hogg (NYU).
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,7 +19,14 @@ def triangle(xs, xms, del_x):
     # returns values of triangle components centered on xms at location xs
     # xs & xms must be broadcastable
     return np.maximum(1. - np.abs(xs - xms)/del_x, 0.)
-    
+
+def dtriangle_dx(xs, xms, del_x):
+    # return the derivatives of `triangle()`
+    signs = np.sign(xms - xs)
+    signs[xs - xms > del_x] = 0.
+    signs[xms - xs > del_x] = 0.
+    return signs
+
 def model(xs, xms, del_x, ams):
     # returns values of triangle-based model at xs
     # xs : ln(wavelength) at point(s) of interest
