@@ -27,6 +27,18 @@ def dtriangle_dx(xs, xms, del_x):
     signs[xms - xs > del_x] = 0.
     return signs
 
+def deltax(v):
+    """
+    Doppler Shift formula for log wavelength.
+    """
+    beta = v / c
+    return - 0.5 * np.log((1. + beta)/(1. - beta))
+
+def ddeltax_dv(v):
+    # return the derivative of `deltax()`
+    beta = v / c
+    return -1. / (c * (1. - beta * beta))
+
 def model(xs, xms, del_x, ams):
     # returns values of triangle-based model at xs
     # xs : ln(wavelength) at point(s) of interest
@@ -42,8 +54,7 @@ def min_function(pars, xs, ys, xms, del_x):
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
     resid = np.array([])
     for e in range(n_epoch):
-        beta = vs[e] / c
-        thisxs = xs[e] - 0.5 * np.log((1. + beta)/(1. - beta))
+        thisxs = xs[e] + deltax(vs[e])
         calc = model(thisxs, xms, del_x, ams * scales[e])
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
