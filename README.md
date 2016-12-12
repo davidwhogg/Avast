@@ -5,7 +5,8 @@
 A playground for exploring time-domain variations in stellar spectra.
 
 ## Authors
-- **David W. Hogg** (NYU) (MPIA)
+- **Megan Bedell** (Chicago)
+- **David W. Hogg** (NYU) (MPIA) (Flatiron)
 
 ## License
 All content is Copyright 2016 the authors.
@@ -25,6 +26,6 @@ also for making extremely precise measurements of stellar parameters
 or radial velocities.
 
 ## Projects
-- Comparison of multiple-visit spectra of the same star.
+- Searches for time variability in stellar spectra.
 - Regression of stellar spectra against measured radial velocity.
 - Searches for variance across stellar identical twins.
