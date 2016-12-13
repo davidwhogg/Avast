@@ -6,10 +6,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from scipy.optimize import leastsq
-c = 2.99792458e8
+c = 2.99792458e8   # m/s
 
 def unpack_pars(pars, n_ms, n_epoch):
-    # unpack Parameters() object
+    # unpack parameters
     ams = pars[0:n_ms]
     scales = pars[n_ms:n_ms+n_epoch]
     vs = pars[n_ms+n_epoch:]
@@ -23,14 +23,11 @@ def triangle(xs, xms, del_x):
 def dtriangle_dx(xs, xms, del_x):
     # return the derivatives of `triangle()`
     signs = np.sign(xms - xs)
-    signs[xs - xms > del_x] = 0.
-    signs[xms - xs > del_x] = 0.
+    signs[np.abs(xms - xs) > del_x] = 0.
     return signs
 
 def deltax(v):
-    """
-    Doppler Shift formula for log wavelength.
-    """
+    # Doppler Shift formula for log wavelength.
     beta = v / c
     return - 0.5 * np.log((1. + beta)/(1. - beta))
 
