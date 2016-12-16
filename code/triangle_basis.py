@@ -55,7 +55,7 @@ def min_function(pars, xs, ys, xms, del_x):
         calc = model(thisxs, xms, del_x, ams * scales[e])
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
-    return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 30.)) #MAGIC
+    return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 1000.)) #MAGIC
     
 def min_v(pars, i, xs, ys, xms, del_x):
     # do a simple minimzation of just one velocity parameter
@@ -109,7 +109,7 @@ def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     plt.savefig(save_name)
 
 if __name__ == "__main__":
-    data_dir = '../data/quiet_star/'
+    data_dir = '../data/binary_star/'
     wave, spec = np.loadtxt(data_dir+'test_spec1.txt', unpack=True)
     wave2, spec2 = np.loadtxt(data_dir+'test_spec2.txt', unpack=True)
     wave3, spec3 = np.loadtxt(data_dir+'test_spec3.txt', unpack=True)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     print "mesg: {0}".format(soln[3])
     print "ier: {0}".format(soln[4])
     print "Velocities:", vs
-    print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+    #print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
 
     
     # optimize one epoch at a time:
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         print "Optimization of velocity at epoch {0}:".format(i)
         print "Objective function value: {0}".format(np.dot(resids,resids))
         print "Velocities:", vs
-        print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+        #print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
         
     
     # do it a few more times:
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         print "mesg: {0}".format(soln[3])
         print "ier: {0}".format(soln[4])
         print "Velocities:", vs2
-        print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+        #print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
         
     
         # & loop through the epochs again:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
             print "Optimization of velocity at epoch {0}:".format(i)
             print "Objective function value: {0}".format(np.dot(resids,resids))
             print "Velocities:", vs
-            print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
+            #print "stdev(velocities) = {0:.2f} m/s".format(np.std(vs))
             
     
     
