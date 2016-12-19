@@ -15,24 +15,24 @@ def unpack_pars(pars, n_ms, n_epoch):
     vs = pars[n_ms+n_epoch:]
     return ams, scales, vs
     
-def triangle(xs, xms, del_x):
+def g(xs, xms, del_x):
     # returns values of triangle components centered on xms at location xs
     # xs & xms must be broadcastable
     return np.maximum(1. - np.abs(xs - xms)/del_x, 0.)
 
-def dtriangle_dx(xs, xms, del_x):
-    # return the derivatives of `triangle()`
+def dg_dx(xs, xms, del_x):
+    # return the derivatives of `g()`
     signs = np.sign(xms - xs)
     signs[np.abs(xms - xs) > del_x] = 0.
     return signs
 
-def deltax(v):
+def deltaj(v):
     # Doppler Shift formula for log wavelength.
     beta = v / c
     return - 0.5 * np.log((1. + beta)/(1. - beta))
 
-def ddeltax_dv(v):
-    # return the derivative of `deltax()`
+def ddeltaj_dv(v):
+    # return the derivative of `deltaj()`
     beta = v / c
     return -1. / (c * (1. - beta * beta))
 
@@ -42,7 +42,7 @@ def f(xs, xms, del_x, ams):
     # xms : ln(wavelength) grid, shape (M)
     # del_x : ln(wavelength) spacing of xms
     # ams : function coefficients, shape (M)
-    return np.sum(ams[None,:] * triangle(xs[:,None], xms[None,:], del_x), axis=1) 
+    return np.sum(ams[None,:] * g(xs[:,None], xms[None,:], del_x), axis=1) 
 
 def min_function(pars, xs, ys, xms, del_x):
     # function to minimize
@@ -51,15 +51,31 @@ def min_function(pars, xs, ys, xms, del_x):
     ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
     resid = np.array([])
     for e in range(n_epoch):
-        thisxs = xs[e] + deltax(vs[e])
-        calc = f(thisxs, xms, del_x, ams * scales[e])
+        xprimes = xs[e] + deltaj(vs[e])
+        calc = scales[e] * f(xprimes, xms, del_x, ams)
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
     return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 1000.)) #MAGIC
-    
+
+def deriv_function(pars, xs, ys, xms, del_x):
+    # derivatives of min_function() wrt pars
+    n_epoch = len(xs)
+    n_ms = len(xms)
+    ams, scales, vs = unpack_pars(pars, n_ms, n_epoch)
+    deriv_matrix = np.zeros((len(xs[0]), n_epoch, len(pars)))
+    for j in range(n_epoch):
+        xprimes = xs[j] + deltaj(vs[j])
+        dy_dsj = f(xprimes, xms, del_x, ams)
+        deriv_matrix[:,j,j] = dy_dsj
+        dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
+        deriv_matrix[:,j,n_epoch:n_epoch+n_ms] = dy_dams
+        dy_ddeltaj = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
+            xms[None,:], del_x), axis=1)
+        deriv_matrix[:,j,-n_epoch+j] = dy_ddeltaj
+    return deriv_matrix
     
 def min_v(pars, i, xs, ys, xms, del_x):
-    # do a simple minimzation of just one velocity parameter
+    # do a simple minimization of just one velocity parameter
     # i : epoch # to minimize, 0-2
     tmp_pars = np.copy(pars)    
     obj = []  # objective function
