@@ -36,8 +36,8 @@ def ddeltax_dv(v):
     beta = v / c
     return -1. / (c * (1. - beta * beta))
 
-def model(xs, xms, del_x, ams):
-    # returns values of triangle-based model at xs
+def f(xs, xms, del_x, ams):
+    # returns values of triangle-based model f(x) at xs
     # xs : ln(wavelength) at point(s) of interest
     # xms : ln(wavelength) grid, shape (M)
     # del_x : ln(wavelength) spacing of xms
@@ -52,10 +52,11 @@ def min_function(pars, xs, ys, xms, del_x):
     resid = np.array([])
     for e in range(n_epoch):
         thisxs = xs[e] + deltax(vs[e])
-        calc = model(thisxs, xms, del_x, ams * scales[e])
+        calc = f(thisxs, xms, del_x, ams * scales[e])
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
     return np.append(resid, np.append((scales - 1.) / 0.5, (vs - 0.) / 1000.)) #MAGIC
+    
     
 def min_v(pars, i, xs, ys, xms, del_x):
     # do a simple minimzation of just one velocity parameter
@@ -190,9 +191,9 @@ if __name__ == "__main__":
     
     
     for e in range(n_epoch):
-        calc = model(xs[e], xms, del_x, ams * scales[e])
+        calc = f(xs[e], xms, del_x, ams * scales[e])
         x_plot = np.linspace(np.min(xs),np.max(xs),num=5000)
-        calc_plot = model(x_plot, xms, del_x, ams * scales[e])
+        calc_plot = f(x_plot, xms, del_x, ams * scales[e])
         save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
 
     
