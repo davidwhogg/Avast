@@ -24,7 +24,7 @@ def dg_dx(xs, xms, del_x):
     # return the derivatives of `g()`
     signs = np.sign(xms - xs)
     signs[np.abs(xms - xs) > del_x] = 0.
-    return signs
+    return signs/del_x
 
 def deltaj(v):
     # Doppler Shift formula for log wavelength.
