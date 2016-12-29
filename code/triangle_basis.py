@@ -50,23 +50,25 @@ def min_function(pars, xs, ys, xms, del_x):
         calc = scales[e] * f(xprimes, xms, del_x, ams)
         err = np.sqrt(ys[e])    # assumes Poisson noise 
         resid = np.append(resid,(ys[e] - calc) / err)
-    return np.append(resid, np.append((scales - 1.) / 0.5)) #MAGIC
+    #return np.append(resid, (scales - 1.) / 0.5) #MAGIC
+    return resid
 
 def deriv_function(pars, xs, ys, xms, del_x):
     # derivatives of min_function() wrt pars
     n_epoch = len(xs)
     n_ms = len(xms)
+    n_x = len(xs[0])
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    deriv_matrix = np.zeros((len(xs[0]), n_epoch, len(pars)))
+    deriv_matrix = np.zeros((n_epoch*n_x, len(pars)))
     for j in range(n_epoch):
-        xprimes = xs[j] + xis[e]
+        xprimes = xs[j] + xis[j]
         dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
-        deriv_matrix[:,j,:n_ms] = dy_dams
+        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = dy_dams
         dy_dsj = f(xprimes, xms, del_x, ams)
-        deriv_matrix[:,j,n_ms+j] = dy_dsj
+        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = dy_dsj
         dy_dxij = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
             xms[None,:], del_x), axis=1)
-        deriv_matrix[:,j,-n_epoch+j] = dy_dxij
+        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = dy_dxij
     return deriv_matrix
     
 def min_v(pars, i, xs, ys, xms, del_x):
@@ -138,10 +140,12 @@ if __name__ == "__main__":
     n_ms = len(xms)
     ams0 = np.random.normal(size=n_ms) + np.median(ys[0])
     scales0 = np.ones(n_epoch)
-    xis0 = np.random.normal(size=n_epoch)
+    xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
     pars0 = np.append(ams0, np.append(scales0, xis0))
-    ftol = 1.49012e-08  # default is 1.49012e-08
-    soln = leastsq(min_function, pars0, args=fa, ftol=ftol, full_output=True)
+    ftol = 1.49012e-08  # default is 1.49012e-08    
+    soln = leastsq(min_function, pars0, args=fa, Dfun=deriv_function, 
+            col_deriv=False, ftol=ftol, full_output=True)
+    
 
     # look at the fit:
     pars = soln[0]
@@ -152,10 +156,10 @@ if __name__ == "__main__":
     print "nfev: {0}".format(soln[2]['nfev'])
     print "mesg: {0}".format(soln[3])
     print "ier: {0}".format(soln[4])
-    #vs = xi_to_v(xis)
-    #print "Velocities:", vs
+    vs = xi_to_v(xis)
+    print "Velocities:", vs
 
-    
+    '''''
     # optimize one epoch at a time:
     for i in range(n_epoch):
         pars = min_v(pars, i, xs, ys, xms, del_x)
@@ -165,3 +169,4 @@ if __name__ == "__main__":
         print "Objective function value: {0}".format(np.dot(resids,resids))
         #vs = xi_to_v(xis)
         #print "Velocities:", vs
+    '''
