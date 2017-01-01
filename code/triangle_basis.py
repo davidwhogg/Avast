@@ -5,7 +5,7 @@ Copyright 2016 Megan Bedell (Chicago) and David W. Hogg (NYU).
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-from scipy.optimize import leastsq
+from scipy.optimize import leastsq, fmin_bfgs
 c = 2.99792458e8   # m/s
 
 def unpack_pars(pars, n_ms, n_epoch):
@@ -53,7 +53,7 @@ def min_function(pars, xs, ys, xms, del_x):
     #return np.append(resid, (scales - 1.) / 0.5) #MAGIC
     return resid
 
-def deriv_function(pars, xs, ys, xms, del_x):
+def deriv_matrix(pars, xs, ys, xms, del_x):
     # derivatives of min_function() wrt pars
     n_epoch = len(xs)
     n_ms = len(xms)
@@ -71,6 +71,17 @@ def deriv_function(pars, xs, ys, xms, del_x):
         deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = dy_dxij
     return deriv_matrix
     
+def objective(pars, xs, ys, xms, del_x):
+   # scalar objective function
+   resid = min_function(pars, xs, ys, xms, del_x)
+   return np.dot(resid, resid)
+   
+def obj_deriv(pars, xs, ys, xms, del_x):
+    # derivative of objective function
+    resid = min_function(pars, xs, ys, xms, del_x)
+    matrix = deriv_matrix(pars, xs, ys, xms, del_x)
+    return 2.0 * np.dot(resid, matrix)
+
 def min_v(pars, i, xs, ys, xms, del_x):
     # do a simple minimization of just one xi parameter
     # i : epoch # to minimize, 0-2
@@ -142,22 +153,96 @@ if __name__ == "__main__":
     scales0 = np.ones(n_epoch)
     xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
     pars0 = np.append(ams0, np.append(scales0, xis0))
-    ftol = 1.49012e-08  # default is 1.49012e-08    
-    soln = leastsq(min_function, pars0, args=fa, Dfun=deriv_function, 
-            col_deriv=False, ftol=ftol, full_output=True)
+    ftol = 1.49012e-08  # default is 1.49012e-08 
     
+    '''''
+    soln = leastsq(min_function, pars0, args=fa, ftol=ftol, full_output=True)
+    pars_nodf = soln[0]   
+    ams, scales, xis = unpack_pars(pars_nodf, n_ms, n_epoch)
+    for e in range(n_epoch):
+        xprimes = xs[e] + xis[e]
+        calc = f(xprimes, xms, del_x, ams) * scales[e]
+        x_plot = np.linspace(xprimes[0],xprimes[-1],num=5000)
+        calc_plot = f(x_plot, xms, del_x, ams * scales[e])
+        save_plot(xprimes, ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'_nodf.pdf')
+    '''
+    
+    #soln = leastsq(min_function, pars0, args=fa, Dfun=deriv_matrix, 
+    #        col_deriv=False, ftol=ftol, full_output=True)  
+    
+    soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True)  
 
     # look at the fit:
     pars = soln[0]
+    #pars = soln
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    resids = min_function(pars, xs, ys, xms, del_x)
+    #resids = min_function(pars, xs, ys, xms, del_x)
     print "Initial optimization of all parameters:"
-    print "Objective function value: {0}".format(np.dot(resids,resids))
-    print "nfev: {0}".format(soln[2]['nfev'])
-    print "mesg: {0}".format(soln[3])
-    print "ier: {0}".format(soln[4])
+    #print "Objective function value: {0}".format(np.dot(resids,resids))
+    #print "nfev: {0}".format(soln[2]['nfev'])
+    #print "mesg: {0}".format(soln[3])
+    #print "ier: {0}".format(soln[4])
     vs = xi_to_v(xis)
     print "Velocities:", vs
+    
+
+
+    for e in range(n_epoch):
+        xprimes = xs[e] + xis[e]
+        calc = f(xprimes, xms, del_x, ams * scales[e])
+        x_plot = np.linspace(xprimes[0],xprimes[-1],num=5000)
+        calc_plot = f(x_plot, xms, del_x, ams * scales[e])
+        save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
+
+    # plotting objective function with various parameters:
+    tmp_pars = np.copy(pars)
+    obj = []  # objective function
+    a20 = []
+    for a in np.linspace(ams[20]-100.,ams[20]+100.,100):
+        tmp_pars[20] = a
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        a20 = np.append(a20,a)
+    plt.clf()
+    plt.plot(a20,obj)
+    plt.axvline(ams[20], linestyle='solid')
+    plt.xlabel(r'a$_{20}$')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_a20.png')
+    plt.clf()
+    
+    tmp_pars = np.copy(pars)
+    obj = []  # objective function
+    scale0 = []
+    for s in np.linspace(scales[0]*0.95,scales[0]*1.05,100):
+        tmp_pars[n_ms] = s
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        scale0 = np.append(scale0,s)
+    plt.clf()
+    plt.plot(scale0,obj)
+    plt.axvline(scales[0], linestyle='solid')
+    plt.xlabel(r'scale$_{0}$')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_scale0.png')
+    plt.clf()
+    
+    tmp_pars = np.copy(pars)    
+    obj = []  # objective function
+    xi0 = []
+    for xi in np.linspace(xis[0]*0.95,xis[0]*1.05,100):
+        tmp_pars[n_ms+n_epoch] = xi
+        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        obj = np.append(obj, np.dot(resids,resids))
+        xi0 = np.append(xi0,xi)
+    plt.clf()
+    plt.plot(xi0,obj)
+    plt.axvline(xis[0], linestyle='solid')
+    plt.xlabel(r'$\xi_{0}$')
+    plt.ylabel('objective function')
+    plt.savefig('objectivefn_xi0.png')
+    plt.clf()
+
 
     '''''
     # optimize one epoch at a time:
