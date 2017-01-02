@@ -40,7 +40,17 @@ def f(xs, xms, del_x, ams):
     return np.sum(ams[None,:] * g(xs[:,None], xms[None,:], del_x), axis=1) 
 
 def min_function(pars, xs, ys, xms, del_x):
-    # function to minimize
+    """
+    function to minimize
+
+    ## bugs:
+    - needs proper comment header.
+    - should add penalty terms for ams (attract to 1), xis (attract to 0).
+    - should take yerrs as well as ys.
+    - I don't believe the sqrt() relation (no CCD gain?)!
+    - should be called `resid_function()`.
+    - should be written with indexing like `deriv_matrix`, not `np.append()`.
+    """
     n_epoch = len(xs)
     n_ms = len(xms)
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
@@ -54,7 +64,14 @@ def min_function(pars, xs, ys, xms, del_x):
     return resid
 
 def deriv_matrix(pars, xs, ys, xms, del_x):
-    # derivatives of min_function() wrt pars
+    """
+    derivatives of min_function() wrt pars
+
+    ## bugs:
+    - doesn't seem to use err or yerrs anywhere!
+    - sign errors - `resid` is data - model, so derivatives need minuses?
+    - matches resid, but both functions need penalty terms.
+    """
     n_epoch = len(xs)
     n_ms = len(xms)
     n_x = len(xs[0])
