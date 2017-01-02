@@ -17,7 +17,7 @@ def unpack_pars(pars, n_ms, n_epoch):
 
 def xi_to_v(xi):
     # translate ln(wavelength) Doppler shift to a velocity in m/s
-    r = np.e**(2.*xi) # r = (c+v)/(c-v)
+    r = np.exp(2.*xi) # r = (c+v)/(c-v)
     return c * (r - 1.)/(r + 1.)
     
 def g(xs, xms, del_x):
@@ -45,42 +45,44 @@ def resid_function(pars, xs, ys, yerrs, xms, del_x):
 
     ## bugs:
     - needs proper comment header.
+    - array indexing is very brittle.
     """
     n_epoch = len(xs)
     n_ms = len(xms)
+    n_x = len(xs[0])  # assumes all xs are the same length
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    resid = np.zeros_like(ys)
-    for e in range(n_epoch):
-        xprimes = xs[e] + xis[e]
-        calc = scales[e] * f(xprimes, xms, del_x, ams)
-        resid[e] = (ys[e] - calc) / yerrs[e]
-    resid = np.append(resid.flatten(), (ams - 1.)/1.0e4)  # append penalty terms
-    resid = np.append(resid, (xis - 0.)/100.0)
-    return resid
+    resid = np.zeros((n_epoch*n_x + n_ms + n_epoch))
+    for j in range(n_epoch):
+        xprimes = xs[j] + xis[j]
+        calc = scales[j] * f(xprimes, xms, del_x, ams)
+        resid[j*n_x:(j+1)*n_x] = (ys[j] - calc) / yerrs[j]
+    resid[-n_epoch-n_ms:-n_epoch] = (ams - 1.)/1.0  # append penalty terms of a MAGIC NUMBER
+    resid[-n_epoch:] = (xis - 0.)/3.e-6  # MAGIC NUMBER (1 km/s-ish)
+    return resid.flatten()
 
-def deriv_matrix(pars, xs, ys, xms, del_x):
+def deriv_matrix(pars, xs, ys, yerrs, xms, del_x):
     """
     derivatives of resid_function() wrt pars
 
     ## bugs:
-    - doesn't seem to use err or yerrs anywhere!
-    - sign errors - `resid` is data - model, so derivatives need minuses?
-    - matches resid, but both functions need penalty terms.
+    - penalty terms are arbitrary & should be linked to resid_function
     """
     n_epoch = len(xs)
     n_ms = len(xms)
-    n_x = len(xs[0])
+    n_x = len(xs[0])  # assumes all xs are the same length
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    deriv_matrix = np.zeros((n_epoch*n_x, len(pars)))
+    deriv_matrix = np.zeros((n_epoch*n_x + n_ms + n_epoch, len(pars)))
     for j in range(n_epoch):
         xprimes = xs[j] + xis[j]
         dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
-        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams
+        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams / (yerrs[j])[:,None]
         dy_dsj = f(xprimes, xms, del_x, ams)
-        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj
+        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj / yerrs[j]
         dy_dxij = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
             xms[None,:], del_x), axis=1)
-        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij
+        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij / yerrs[j]
+    deriv_matrix[-n_epoch-n_ms:-n_epoch,:n_ms] = np.eye(n_ms)/1.0  # append penalty terms of a MAGIC NUMBER
+    deriv_matrix[-n_epoch:,-n_epoch:] = np.eye(n_epoch)/3.e-6  # MAGIC NUMBER (1 km/s-ish)
     return deriv_matrix
     
 def objective(pars, xs, ys, yerrs, xms, del_x):
@@ -91,7 +93,7 @@ def objective(pars, xs, ys, yerrs, xms, del_x):
 def obj_deriv(pars, xs, ys, yerrs, xms, del_x):
     # derivative of objective function
     resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
-    matrix = deriv_matrix(pars, xs, ys, xms, del_x)
+    matrix = deriv_matrix(pars, xs, ys, yerrs, xms, del_x)
     return 2.0 * np.dot(resid, matrix)
 
 def min_v(pars, i, xs, ys, yerrs, xms, del_x):
@@ -162,8 +164,8 @@ if __name__ == "__main__":
     fa = (xs, ys, yerrs, xms, del_x)
     n_epoch = len(xs)
     n_ms = len(xms)
-    ams0 = np.random.normal(size=n_ms) + np.median(ys[0])
-    scales0 = np.ones(n_epoch)
+    ams0 = np.ones(n_ms)
+    scales0 = [np.median(s) for s in ys]
     xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
     pars0 = np.append(ams0, np.append(scales0, xis0))
     ftol = 1.49012e-08  # default is 1.49012e-08 
