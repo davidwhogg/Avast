@@ -39,33 +39,28 @@ def f(xs, xms, del_x, ams):
     # ams : function coefficients, shape (M)
     return np.sum(ams[None,:] * g(xs[:,None], xms[None,:], del_x), axis=1) 
 
-def min_function(pars, xs, ys, xms, del_x):
+def resid_function(pars, xs, ys, yerrs, xms, del_x):
     """
     function to minimize
 
     ## bugs:
     - needs proper comment header.
-    - should add penalty terms for ams (attract to 1), xis (attract to 0).
-    - should take yerrs as well as ys.
-    - I don't believe the sqrt() relation (no CCD gain?)!
-    - should be called `resid_function()`.
-    - should be written with indexing like `deriv_matrix`, not `np.append()`.
     """
     n_epoch = len(xs)
     n_ms = len(xms)
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    resid = np.array([])
+    resid = np.zeros_like(ys)
     for e in range(n_epoch):
         xprimes = xs[e] + xis[e]
         calc = scales[e] * f(xprimes, xms, del_x, ams)
-        err = np.sqrt(ys[e])    # assumes Poisson noise 
-        resid = np.append(resid,(ys[e] - calc) / err)
-    #return np.append(resid, (scales - 1.) / 0.5) #MAGIC
+        resid[e] = (ys[e] - calc) / yerrs[e]
+    resid = np.append(resid.flatten(), (ams - 1.)/1.0e4)  # append penalty terms
+    resid = np.append(resid, (xis - 0.)/100.0)
     return resid
 
 def deriv_matrix(pars, xs, ys, xms, del_x):
     """
-    derivatives of min_function() wrt pars
+    derivatives of resid_function() wrt pars
 
     ## bugs:
     - doesn't seem to use err or yerrs anywhere!
@@ -80,26 +75,26 @@ def deriv_matrix(pars, xs, ys, xms, del_x):
     for j in range(n_epoch):
         xprimes = xs[j] + xis[j]
         dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
-        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = dy_dams
+        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams
         dy_dsj = f(xprimes, xms, del_x, ams)
-        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = dy_dsj
+        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj
         dy_dxij = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
             xms[None,:], del_x), axis=1)
-        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = dy_dxij
+        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij
     return deriv_matrix
     
-def objective(pars, xs, ys, xms, del_x):
+def objective(pars, xs, ys, yerrs, xms, del_x):
    # scalar objective function
-   resid = min_function(pars, xs, ys, xms, del_x)
+   resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
    return np.dot(resid, resid)
    
-def obj_deriv(pars, xs, ys, xms, del_x):
+def obj_deriv(pars, xs, ys, yerrs, xms, del_x):
     # derivative of objective function
-    resid = min_function(pars, xs, ys, xms, del_x)
+    resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
     matrix = deriv_matrix(pars, xs, ys, xms, del_x)
     return 2.0 * np.dot(resid, matrix)
 
-def min_v(pars, i, xs, ys, xms, del_x):
+def min_v(pars, i, xs, ys, yerrs, xms, del_x):
     # do a simple minimization of just one xi parameter
     # i : epoch # to minimize, 0-2
     tmp_pars = np.copy(pars)    
@@ -107,7 +102,7 @@ def min_v(pars, i, xs, ys, xms, del_x):
     xi0 = []
     for xi in np.linspace(xis[i]-1.,xis[i]+1.,100):
         tmp_pars[-n_epoch+i] = xi
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        resids = resid_function(tmp_pars, xs, ys, yerrs, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
         xi0 = np.append(xi0,xi)
     plt.clf()
@@ -159,11 +154,12 @@ if __name__ == "__main__":
     wave5, spec5 = np.loadtxt(data_dir+'test_spec5.txt', unpack=True)
     xs = np.log([wave, wave2, wave3, wave4, wave5])
     ys = [spec, spec2, spec3, spec4, spec5]
+    yerrs = np.sqrt(ys)  # assumes Poisson noise
     del_x = 1.3e-5/2.0
     xms = np.arange(np.min(xs) - 0.5 * del_x, np.max(xs) + 0.99 * del_x, del_x)
     
     # initial fit to ams & scales:
-    fa = (xs, ys, xms, del_x)
+    fa = (xs, ys, yerrs, xms, del_x)
     n_epoch = len(xs)
     n_ms = len(xms)
     ams0 = np.random.normal(size=n_ms) + np.median(ys[0])
@@ -173,7 +169,7 @@ if __name__ == "__main__":
     ftol = 1.49012e-08  # default is 1.49012e-08 
     
     '''''
-    soln = leastsq(min_function, pars0, args=fa, ftol=ftol, full_output=True)
+    soln = leastsq(resid_function, pars0, args=fa, ftol=ftol, full_output=True)
     pars_nodf = soln[0]   
     ams, scales, xis = unpack_pars(pars_nodf, n_ms, n_epoch)
     for e in range(n_epoch):
@@ -184,7 +180,7 @@ if __name__ == "__main__":
         save_plot(xprimes, ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'_nodf.pdf')
     '''
     
-    #soln = leastsq(min_function, pars0, args=fa, Dfun=deriv_matrix, 
+    #soln = leastsq(resid_function, pars0, args=fa, Dfun=deriv_matrix, 
     #        col_deriv=False, ftol=ftol, full_output=True)  
     
     soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True)  
@@ -193,7 +189,7 @@ if __name__ == "__main__":
     pars = soln[0]
     #pars = soln
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    #resids = min_function(pars, xs, ys, xms, del_x)
+    #resids = resid_function(pars, xs, ys, xms, del_x)
     print "Initial optimization of all parameters:"
     #print "Objective function value: {0}".format(np.dot(resids,resids))
     #print "nfev: {0}".format(soln[2]['nfev'])
@@ -217,7 +213,7 @@ if __name__ == "__main__":
     a20 = []
     for a in np.linspace(ams[20]-100.,ams[20]+100.,100):
         tmp_pars[20] = a
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        resids = resid_function(tmp_pars, xs, ys, yerrs, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
         a20 = np.append(a20,a)
     plt.clf()
@@ -233,7 +229,7 @@ if __name__ == "__main__":
     scale0 = []
     for s in np.linspace(scales[0]*0.95,scales[0]*1.05,100):
         tmp_pars[n_ms] = s
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        resids = resid_function(tmp_pars, xs, ys, yerrs, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
         scale0 = np.append(scale0,s)
     plt.clf()
@@ -249,7 +245,7 @@ if __name__ == "__main__":
     xi0 = []
     for xi in np.linspace(xis[0]*0.95,xis[0]*1.05,100):
         tmp_pars[n_ms+n_epoch] = xi
-        resids = min_function(tmp_pars, xs, ys, xms, del_x)
+        resids = resid_function(tmp_pars, xs, ys, yerrs, xms, del_x)
         obj = np.append(obj, np.dot(resids,resids))
         xi0 = np.append(xi0,xi)
     plt.clf()
@@ -265,7 +261,7 @@ if __name__ == "__main__":
     # optimize one epoch at a time:
     for i in range(n_epoch):
         pars = min_v(pars, i, xs, ys, xms, del_x)
-        resids = min_function(pars, xs, ys, xms, del_x)
+        resids = resid_function(pars, xs, ys, xms, del_x)
         ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
         print "Optimization of velocity at epoch {0}:".format(i)
         print "Objective function value: {0}".format(np.dot(resids,resids))
