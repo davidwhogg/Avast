@@ -5,14 +5,16 @@ Copyright 2016 Megan Bedell (Chicago) and David W. Hogg (NYU).
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-from scipy.optimize import leastsq, fmin_bfgs
+from scipy.optimize import leastsq, fmin_bfgs, fmin_cg
 c = 2.99792458e8   # m/s
+xi_scale = 1.e7
+scale_scale = 1.e-4
 
 def unpack_pars(pars, n_ms, n_epoch):
     # unpack parameters
     ams = pars[0:n_ms]
-    scales = pars[n_ms:n_ms+n_epoch]
-    xis = pars[n_ms+n_epoch:]
+    scales = pars[n_ms:n_ms+n_epoch] / scale_scale
+    xis = pars[n_ms+n_epoch:] / xi_scale
     return ams, scales, xis
 
 def xi_to_v(xi):
@@ -77,12 +79,12 @@ def deriv_matrix(pars, xs, ys, yerrs, xms, del_x):
         dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
         deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams / (yerrs[j])[:,None]
         dy_dsj = f(xprimes, xms, del_x, ams)
-        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj / yerrs[j]
+        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj / yerrs[j] / scale_scale
         dy_dxij = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
             xms[None,:], del_x), axis=1)
-        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij / yerrs[j]
+        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij / yerrs[j] / xi_scale
     deriv_matrix[-n_epoch-n_ms:-n_epoch,:n_ms] = np.eye(n_ms)/1.0  # append penalty terms of a MAGIC NUMBER
-    deriv_matrix[-n_epoch:,-n_epoch:] = np.eye(n_epoch)/3.e-6  # MAGIC NUMBER (1 km/s-ish)
+    deriv_matrix[-n_epoch:,-n_epoch:] = np.eye(n_epoch)/3.e-6 / xi_scale  # MAGIC NUMBER (1 km/s-ish)
     return deriv_matrix
     
 def objective(pars, xs, ys, yerrs, xms, del_x):
@@ -117,7 +119,7 @@ def min_v(pars, i, xs, ys, yerrs, xms, del_x):
     tmp_pars[-n_epoch+i] = xi_min
     return tmp_pars
     
-def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
+def save_plot(xs, obs, calc, resid, x_plot, calc_plot, save_name, i):
     xs = np.e**xs
     x_plot = np.e**x_plot
     fig = plt.figure()
@@ -127,9 +129,11 @@ def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     ax1.plot(x_plot,calc_plot, color='red', label='Calculated')
     ax1.set_ylabel('Flux')
     #ax1.legend()
+    ax1.set_title('Epoch {0}'.format(i))
     ax1.set_xticklabels( () )
     ax2 = fig.add_subplot(2,1,2)
     ax2.step(xs,obs - calc, color='black')
+    ax2.step(xs,resid, color='red')
     ax2.set_ylabel('(O-C)')
     ax2.ticklabel_format(useOffset=False)
     ax2.set_xlabel(r'Wavelength ($\AA$)')
@@ -145,18 +149,27 @@ def save_plot(xs, obs, calc, x_plot, calc_plot, save_name):
     ax2.yaxis.set_major_locator(majorLocator)
     ax2.set_ylim([-500,500])
     fig.subplots_adjust(hspace=0.05)
+    ax1.set_xlim([x_plot.min(),x_plot.max()])
+    ax2.set_xlim([x_plot.min(),x_plot.max()])
+    
     plt.savefig(save_name)
 
 if __name__ == "__main__":
-    data_dir = '../data/binary_star/'
-    wave, spec = np.loadtxt(data_dir+'test_spec1.txt', unpack=True)
-    wave2, spec2 = np.loadtxt(data_dir+'test_spec2.txt', unpack=True)
-    wave3, spec3 = np.loadtxt(data_dir+'test_spec3.txt', unpack=True)
-    wave4, spec4 = np.loadtxt(data_dir+'test_spec4.txt', unpack=True)
-    wave5, spec5 = np.loadtxt(data_dir+'test_spec5.txt', unpack=True)
-    xs = np.log([wave, wave2, wave3, wave4, wave5])
-    ys = [spec, spec2, spec3, spec4, spec5]
-    yerrs = np.sqrt(ys)  # assumes Poisson noise
+    data_dir = '../data/halpha/'
+    
+    nfile = 5
+    filelist = [data_dir + "test_spec{0}.txt".format(i+1) for i in range(nfile)]
+    xs = None
+    for e,fn in enumerate(filelist):
+        w, s = np.loadtxt(fn, unpack=True)
+        if xs is None:
+            nwave = len(w)
+            xs, ys = np.zeros([nfile,nwave]), np.zeros([nfile,nwave])
+        assert len(w) == nwave
+        xs[e] = np.log(w)
+        ys[e] = s
+
+    yerrs = np.sqrt(ys)  # assumes Poisson noise and a gain of 1.0
     del_x = 1.3e-5/2.0
     xms = np.arange(np.min(xs) - 0.5 * del_x, np.max(xs) + 0.99 * del_x, del_x)
     
@@ -165,8 +178,9 @@ if __name__ == "__main__":
     n_epoch = len(xs)
     n_ms = len(xms)
     ams0 = np.ones(n_ms)
-    scales0 = [np.median(s) for s in ys]
-    xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
+    scales0 = [np.median(s) * scale_scale for s in ys]
+    xis0 = np.zeros(n_epoch) * xi_scale
+    #xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
     pars0 = np.append(ams0, np.append(scales0, xis0))
     ftol = 1.49012e-08  # default is 1.49012e-08 
     
@@ -185,7 +199,8 @@ if __name__ == "__main__":
     #soln = leastsq(resid_function, pars0, args=fa, Dfun=deriv_matrix, 
     #        col_deriv=False, ftol=ftol, full_output=True)  
     
-    soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True)  
+    gtol = 1.e-9
+    soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True, gtol=gtol)  
 
     # look at the fit:
     pars = soln[0]
@@ -201,13 +216,16 @@ if __name__ == "__main__":
     print "Velocities:", vs
     
 
-
+    
     for e in range(n_epoch):
         xprimes = xs[e] + xis[e]
         calc = f(xprimes, xms, del_x, ams * scales[e])
         x_plot = np.linspace(xprimes[0],xprimes[-1],num=5000)
-        calc_plot = f(x_plot, xms, del_x, ams * scales[e])
-        save_plot(xs[e], ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'.pdf')
+        calc_plot = f(x_plot+xis[e], xms, del_x, ams * scales[e])
+        resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
+        n_x = len(xs[e])
+        resid = resid[e*n_x:(e+1)*n_x] * yerrs[e]
+        save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'epoch'+str(e)+'.pdf', e)
 
     # plotting objective function with various parameters:
     tmp_pars = np.copy(pars)
