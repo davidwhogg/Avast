@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from scipy.optimize import leastsq, fmin_bfgs, fmin_cg
+from scipy.linalg import svd
 c = 2.99792458e8   # m/s
 xi_scale = 1.e7
 scale_scale = 1.e-4
@@ -155,10 +156,11 @@ def save_plot(xs, obs, calc, resid, x_plot, calc_plot, save_name, i):
     plt.savefig(save_name)
 
 if __name__ == "__main__":
-    data_dir = '../data/halpha/'
+    data_dir = '../data/halpha_quiet/'
     
-    nfile = 5
-    filelist = [data_dir + "test_spec{0}.txt".format(i+1) for i in range(nfile)]
+    print "Reading files..."
+    nfile = 48
+    filelist = [data_dir + "test_spec{0}.txt".format(i) for i in range(nfile)]
     xs = None
     for e,fn in enumerate(filelist):
         w, s = np.loadtxt(fn, unpack=True)
@@ -169,6 +171,7 @@ if __name__ == "__main__":
         xs[e] = np.log(w)
         ys[e] = s
 
+    print "Got data!", ys.shape
     yerrs = np.sqrt(ys)  # assumes Poisson noise and a gain of 1.0
     del_x = 1.3e-5/2.0
     xms = np.arange(np.min(xs) - 0.5 * del_x, np.max(xs) + 0.99 * del_x, del_x)
@@ -199,8 +202,11 @@ if __name__ == "__main__":
     #soln = leastsq(resid_function, pars0, args=fa, Dfun=deriv_matrix, 
     #        col_deriv=False, ftol=ftol, full_output=True)  
     
+    print "Optimizing...."
+    
     gtol = 1.e-9
     soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True, gtol=gtol)  
+    print "Solution achieved!"
 
     # look at the fit:
     pars = soln[0]
@@ -216,7 +222,7 @@ if __name__ == "__main__":
     print "Velocities:", vs
     
 
-    
+    calcs = np.zeros((n_epoch, len(xs[e])))
     for e in range(n_epoch):
         xprimes = xs[e] + xis[e]
         calc = f(xprimes, xms, del_x, ams * scales[e])
@@ -225,8 +231,19 @@ if __name__ == "__main__":
         resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
         n_x = len(xs[e])
         resid = resid[e*n_x:(e+1)*n_x] * yerrs[e]
-        save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'epoch'+str(e)+'.pdf', e)
-
+        #save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'epoch'+str(e)+'.pdf', e)
+        calcs[e] = calc
+        
+    scaled_resids = (ys - calcs) / scales[:,None]
+    u, s, v = svd(scaled_resids, full_matrices=False)
+    u.shape, s.shape, v.shape
+    
+    data_dir = "/Users/mbedell/Documents/Research/HARPSTwins/Results/"
+    pipeline = readsav(data_dir+'HIP54287_result.dat')
+    plt.scatter(pipeline.rv, u[:,0])
+    
+    
+if False:
     # plotting objective function with various parameters:
     tmp_pars = np.copy(pars)
     obj = []  # objective function
