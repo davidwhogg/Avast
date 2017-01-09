@@ -2,11 +2,13 @@
 This file is part of the Avast project.
 Copyright 2016 Megan Bedell (Chicago) and David W. Hogg (NYU).
 """
+import glob
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from scipy.optimize import leastsq, fmin_bfgs, fmin_cg
 from scipy.linalg import svd
+from scipy.io.idl import readsav
 c = 2.99792458e8   # m/s
 xi_scale = 1.e7
 scale_scale = 1.e-4
@@ -159,8 +161,8 @@ if __name__ == "__main__":
     data_dir = '../data/halpha_quiet/'
     
     print "Reading files..."
-    nfile = 48
-    filelist = [data_dir + "test_spec{0}.txt".format(i) for i in range(nfile)]
+    filelist = glob.glob(data_dir+'*.txt')
+    nfile = len(filelist)
     xs = None
     for e,fn in enumerate(filelist):
         w, s = np.loadtxt(fn, unpack=True)
@@ -171,7 +173,7 @@ if __name__ == "__main__":
         xs[e] = np.log(w)
         ys[e] = s
 
-    print "Got data!", ys.shape
+    print "Got data!"
     yerrs = np.sqrt(ys)  # assumes Poisson noise and a gain of 1.0
     del_x = 1.3e-5/2.0
     xms = np.arange(np.min(xs) - 0.5 * del_x, np.max(xs) + 0.99 * del_x, del_x)
@@ -196,7 +198,7 @@ if __name__ == "__main__":
         calc = f(xprimes, xms, del_x, ams) * scales[e]
         x_plot = np.linspace(xprimes[0],xprimes[-1],num=5000)
         calc_plot = f(x_plot, xms, del_x, ams * scales[e])
-        save_plot(xprimes, ys[e], calc, x_plot, calc_plot, 'epoch'+str(e)+'_nodf.pdf')
+        save_plot(xprimes, ys[e], calc, x_plot, calc_plot, 'fig/epoch'+str(e)+'_nodf.pdf')
     '''
     
     #soln = leastsq(resid_function, pars0, args=fa, Dfun=deriv_matrix, 
@@ -231,7 +233,7 @@ if __name__ == "__main__":
         resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
         n_x = len(xs[e])
         resid = resid[e*n_x:(e+1)*n_x] * yerrs[e]
-        #save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'epoch'+str(e)+'.pdf', e)
+        #save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'fig/epoch'+str(e)+'.pdf', e)
         calcs[e] = calc
         
     scaled_resids = (ys - calcs) / scales[:,None]
