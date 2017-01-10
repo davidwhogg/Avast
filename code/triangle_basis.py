@@ -12,6 +12,8 @@ from scipy.io.idl import readsav
 c = 2.99792458e8   # m/s
 xi_scale = 1.e7
 scale_scale = 1.e-4
+am_penalty = 1.0
+xi_penalty = 3.e-6  # MAGIC NUMBER (1 km/s-ish)
 
 def unpack_pars(pars, n_ms, n_epoch):
     # unpack parameters
@@ -51,6 +53,7 @@ def resid_function(pars, xs, ys, yerrs, xms, del_x):
     ## bugs:
     - needs proper comment header.
     - array indexing is very brittle.
+    - penalty terms are arbitrary.
     """
     n_epoch = len(xs)
     n_ms = len(xms)
@@ -61,36 +64,33 @@ def resid_function(pars, xs, ys, yerrs, xms, del_x):
         xprimes = xs[j] + xis[j]
         calc = scales[j] * f(xprimes, xms, del_x, ams)
         resid[j*n_x:(j+1)*n_x] = (ys[j] - calc) / yerrs[j]
-    resid[-n_epoch-n_ms:-n_epoch] = (ams - 1.)/1.0  # append penalty terms of a MAGIC NUMBER
-    resid[-n_epoch:] = (xis - 0.)/3.e-6  # MAGIC NUMBER (1 km/s-ish)
+    resid[-n_epoch-n_ms:-n_epoch] = (ams - 1.) / am_penalty
+    resid[-n_epoch:] = (xis - 0.) / xi_penalty
     return resid.flatten()
 
-def deriv_matrix(pars, xs, ys, yerrs, xms, del_x):
+def resid_deriv(pars, xs, ys, yerrs, xms, del_x):
     """
     derivatives of resid_function() wrt pars
-
-    ## bugs:
-    - penalty terms are arbitrary & should be linked to resid_function
     """
     n_epoch = len(xs)
     n_ms = len(xms)
     n_x = len(xs[0])  # assumes all xs are the same length
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    deriv_matrix = np.zeros((n_epoch*n_x + n_ms + n_epoch, len(pars)))
+    resid_deriv = np.zeros((n_epoch*n_x + n_ms + n_epoch, len(pars)))
     for j in range(n_epoch):
         xprimes = xs[j] + xis[j]
         dy_dams = scales[j] * g(xprimes[:,None], xms[None,:], del_x)
-        deriv_matrix[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams / (yerrs[j])[:,None]
+        resid_deriv[j*n_x:(j+1)*n_x,:n_ms] = - dy_dams / (yerrs[j])[:,None]
         dy_dsj = f(xprimes, xms, del_x, ams)
-        deriv_matrix[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj / yerrs[j] / scale_scale
+        resid_deriv[j*n_x:(j+1)*n_x,n_ms+j] = - dy_dsj / yerrs[j] / scale_scale
         dy_dxij = scales[j] * np.sum(ams[None,:] * dg_dx(xprimes[:,None], 
             xms[None,:], del_x), axis=1)
-        deriv_matrix[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij / yerrs[j] / xi_scale
-    deriv_matrix[-n_epoch-n_ms:-n_epoch,:n_ms] = np.eye(n_ms)/1.0  # append penalty terms of a MAGIC NUMBER
-    deriv_matrix[-n_epoch:,-n_epoch:] = np.eye(n_epoch)/3.e-6 / xi_scale  # MAGIC NUMBER (1 km/s-ish)
-    return deriv_matrix
+        resid_deriv[j*n_x:(j+1)*n_x,-n_epoch+j] = - dy_dxij / yerrs[j] / xi_scale
+    resid_deriv[-n_epoch-n_ms:-n_epoch,:n_ms] = np.eye(n_ms) / am_penalty
+    resid_deriv[-n_epoch:,-n_epoch:] = np.eye(n_epoch) / xi_penalty / xi_scale
+    return resid_deriv
     
-def objective(pars, xs, ys, yerrs, xms, del_x):
+def obj_function(pars, xs, ys, yerrs, xms, del_x):
    # scalar objective function
    resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
    return np.dot(resid, resid)
@@ -98,7 +98,7 @@ def objective(pars, xs, ys, yerrs, xms, del_x):
 def obj_deriv(pars, xs, ys, yerrs, xms, del_x):
     # derivative of objective function
     resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
-    matrix = deriv_matrix(pars, xs, ys, yerrs, xms, del_x)
+    matrix = resid_deriv(pars, xs, ys, yerrs, xms, del_x)
     return 2.0 * np.dot(resid, matrix)
 
 def min_v(pars, i, xs, ys, yerrs, xms, del_x):
@@ -186,44 +186,20 @@ if __name__ == "__main__":
     scales0 = [np.median(s) * scale_scale for s in ys]
     xis0 = np.zeros(n_epoch) * xi_scale
     #xis0 = np.random.normal(size=n_epoch)/1.e7 # ~10 m/s level
-    pars0 = np.append(ams0, np.append(scales0, xis0))
-    ftol = 1.49012e-08  # default is 1.49012e-08 
-    
-    '''''
-    soln = leastsq(resid_function, pars0, args=fa, ftol=ftol, full_output=True)
-    pars_nodf = soln[0]   
-    ams, scales, xis = unpack_pars(pars_nodf, n_ms, n_epoch)
-    for e in range(n_epoch):
-        xprimes = xs[e] + xis[e]
-        calc = f(xprimes, xms, del_x, ams) * scales[e]
-        x_plot = np.linspace(xprimes[0],xprimes[-1],num=5000)
-        calc_plot = f(x_plot, xms, del_x, ams * scales[e])
-        save_plot(xprimes, ys[e], calc, x_plot, calc_plot, 'fig/epoch'+str(e)+'_nodf.pdf')
-    '''
-    
-    #soln = leastsq(resid_function, pars0, args=fa, Dfun=deriv_matrix, 
-    #        col_deriv=False, ftol=ftol, full_output=True)  
-    
+    pars0 = np.append(ams0, np.append(scales0, xis0))    
+
     print "Optimizing...."
     
     gtol = 1.e-9
-    soln = fmin_bfgs(objective, pars0, args=fa, fprime=obj_deriv, full_output=True, gtol=gtol)  
+    soln = fmin_bfgs(obj_function, pars0, args=fa, fprime=obj_deriv, full_output=True, gtol=gtol)  
     print "Solution achieved!"
 
     # look at the fit:
     pars = soln[0]
-    #pars = soln
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
-    #resids = resid_function(pars, xs, ys, xms, del_x)
-    print "Initial optimization of all parameters:"
-    #print "Objective function value: {0}".format(np.dot(resids,resids))
-    #print "nfev: {0}".format(soln[2]['nfev'])
-    #print "mesg: {0}".format(soln[3])
-    #print "ier: {0}".format(soln[4])
     vs = xi_to_v(xis)
     print "Velocities:", vs
     
-
     calcs = np.zeros((n_epoch, len(xs[e])))
     for e in range(n_epoch):
         xprimes = xs[e] + xis[e]
@@ -235,6 +211,7 @@ if __name__ == "__main__":
         resid = resid[e*n_x:(e+1)*n_x] * yerrs[e]
         #save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'fig/epoch'+str(e)+'.pdf', e)
         calcs[e] = calc
+        
         
     scaled_resids = (ys - calcs) / scales[:,None]
     u, s, v = svd(scaled_resids, full_matrices=False)
