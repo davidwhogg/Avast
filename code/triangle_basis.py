@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-from scipy.optimize import leastsq, fmin_bfgs, fmin_cg
+from scipy.optimize import minimize
 from scipy.linalg import svd
 from scipy.io.idl import readsav
 c = 2.99792458e8   # m/s
