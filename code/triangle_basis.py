@@ -12,7 +12,7 @@ from scipy.io.idl import readsav
 c = 2.99792458e8   # m/s
 xi_scale = 1.e7
 scale_scale = 1.e-4
-am_penalty = 1.0
+am_penalty = 1.0    # MAGIC NUMBER
 xi_penalty = 3.e-6  # MAGIC NUMBER (1 km/s-ish)
 
 def unpack_pars(pars, n_ms, n_epoch):
@@ -191,11 +191,11 @@ if __name__ == "__main__":
     print "Optimizing...."
     
     gtol = 1.e-9
-    soln = fmin_bfgs(obj_function, pars0, args=fa, fprime=obj_deriv, full_output=True, gtol=gtol)  
+    res = minimize(obj_function, pars0, args=fa, method='BFGS', jac=obj_deriv) 
     print "Solution achieved!"
 
     # look at the fit:
-    pars = soln[0]
+    pars = res['x']
     ams, scales, xis = unpack_pars(pars, n_ms, n_epoch)
     vs = xi_to_v(xis)
     print "Velocities:", vs
