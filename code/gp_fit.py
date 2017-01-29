@@ -9,11 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
-def set_params(params, data):
+def shift_and_flatten(xis, data):
     ndata = sum([len(d[0]) for d in data])
-    nepoch = len(subset)
     ndata_byepoch = [len(d[0]) for d in data]
-    xis, gp_par = params[0:len(data)], params[len(data):]
     n = 0
     x = np.empty(ndata)
     y = np.empty(ndata)
@@ -24,6 +22,14 @@ def set_params(params, data):
         y[n:n+length] = d[1]
         yerr[n:n+length] = d[2]
         n += length
+    return x, y, yerr
+
+def set_params(params, data):
+    ndata = sum([len(d[0]) for d in data])
+    nepoch = len(subset)
+    ndata_byepoch = [len(d[0]) for d in data]
+    xis, gp_par = params[0:len(data)], params[len(data):]
+    x, y, yerr = shift_and_flatten(xis, data)
     inds = np.argsort(x)
     x = x[inds]
     y = y[inds]
@@ -40,12 +46,19 @@ def set_params(params, data):
 def nll(params, data):
     scales, xis, y = set_params(params, data)
     return -gp.log_likelihood(y) + 1./2. #* np.sum(xis**2)
-    
+        
 def prediction(params, data):
     scales, xis, y = set_params(params, data)
+    result_flat = gp.predict(y, return_cov=False)
+    x, _, _ = shift_and_flatten(xis, data)
+    inds = np.argsort(x)
+    result_sorted = result_flat[np.argsort(inds)]
     result = []
-    for i, d in enumerate(data):
-        result.append(gp.predict(y, d[0] - xis[i], return_cov=False) + scales[i])
+    n = 0
+    for i,d in enumerate(data):
+        length = len(d[0])
+        result.append(result_sorted[n:n+length] + scales[i])
+        n += length
     return result
     
 if __name__ == "__main__":
@@ -76,11 +89,13 @@ if __name__ == "__main__":
     soln = minimize(nll, p0, args=(subset), bounds=bounds, method='L-BFGS-B')
     scales, xis, y = set_params(soln.x, subset)
     
+    '''''
     fig,ax = plt.subplots(1,1,figsize=(12,4))
     for i,d in enumerate(subset):
         ax.plot(d[0] - xis[i],d[1] - scales[i])
     ax.set_xlabel('ln(wavelength)')
     ax.set_ylabel('ln(flux) - scale factor')
+    '''
     
     print "Calculating model prediction..."
     mu = prediction(soln.x, subset)
