@@ -8,8 +8,11 @@ import cPickle as pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from scipy.io.idl import readsav
+c = 2.99792458e8   # m/s
 
 def shift_and_flatten(xis, data):
+    # applies shifts of xi to the data and returns flattened data arrays
     ndata = sum([len(d[0]) for d in data])
     ndata_byepoch = [len(d[0]) for d in data]
     n = 0
@@ -25,6 +28,8 @@ def shift_and_flatten(xis, data):
     return x, y, yerr
 
 def set_params(params, data):
+    # update the GP parameter vector & optimize scales
+    # returns: scales and xi parameters used, sorted and scaled data vector y
     ndata = sum([len(d[0]) for d in data])
     nepoch = len(subset)
     ndata_byepoch = [len(d[0]) for d in data]
@@ -44,10 +49,12 @@ def set_params(params, data):
     return scales, xis, y
     
 def nll(params, data):
+    # negative ln(likelihood) function for optimization
     scales, xis, y = set_params(params, data)
     return -gp.log_likelihood(y) + 1./2. #* np.sum(xis**2)
         
 def prediction(params, data):
+    # returns the model predicted by params in the same shape as data
     scales, xis, y = set_params(params, data)
     result_flat = gp.predict(y, return_cov=False)
     x, _, _ = shift_and_flatten(xis, data)
@@ -61,15 +68,22 @@ def prediction(params, data):
         n += length
     return result
     
+def xi_to_v(xi):
+    # translate ln(wavelength) Doppler shift to a velocity in m/s
+    return np.tanh(xi) * c
+ 
+def v_to_xi(v):
+    return np.arctanh(v/c)
+    
 if __name__ == "__main__":
-    data = pickle.load(open( "data.p", "rb" ))
     
     print "Reading in data..."
-    wave_lo = np.log(4680.)
-    wave_hi = np.log(4700.)
+    data = pickle.load(open( "data.p", "rb" ))
+    wave_lo = np.log(6553.)
+    wave_hi = np.log(6573.)
     subset = []
-    #for i in range(len(data)):
-    for i in range(0,len(data),10):
+    subsample = 10 # int between 1 and len(data), smaller selects more epochs
+    for i in range(0,len(data),subsample):
         m = (data[i][0] > wave_lo) & (data[i][0] < wave_hi)
         x = np.copy(data[i][0][m])
         y = np.log(np.copy(data[i][1][m]))
@@ -81,13 +95,27 @@ if __name__ == "__main__":
     gp = celerite.GP(kernel,
                      log_white_noise=-9.6,
                      fit_white_noise=True)
-                     
+    
     print "Minimizing..."                                      
-    xis0 = np.zeros(len(subset))
+    
+    # (optional) initialize xis using the HARPS pipeline RVs:                 
+    data_dir = "/Users/mbedell/Documents/Research/HARPSTwins/Results/"
+    pipeline = readsav(data_dir+'HIP22263_result.dat') 
+    xis0 = np.empty(len(subset))
+    rvs = np.empty(len(subset))
+    dates = np.empty(len(subset))
+    for i in range(len(subset)):
+        rvs[i] = pipeline.rv[i*subsample] * 1.e3
+        xis0[i] = v_to_xi(rvs[i])
+        dates[i] = pipeline.date[i*subsample]
+    
+    #xis0 = np.zeros(len(subset))
     p0 = np.append(xis0, gp.get_parameter_vector())
     bounds = [(-1e-3, 1e-3) for d in subset] + gp.get_parameter_bounds()
     soln = minimize(nll, p0, args=(subset), bounds=bounds, method='L-BFGS-B')
     scales, xis, y = set_params(soln.x, subset)
+    
+    print "RVs =", xi_to_v(xis)
     
     '''''
     fig,ax = plt.subplots(1,1,figsize=(12,4))
@@ -112,4 +140,15 @@ if __name__ == "__main__":
         ax.plot(d[0], (np.exp(d[1]) - np.exp(mu[i])) + 1000*i, color='black')
     ax.set_xlabel('ln(wavelength)')
     ax.set_ylabel('(O - C) + offset')
+    
+    fig,(ax1,ax2) = plt.subplots(2,1,figsize=(12,8))
+    d = subset[0]
+    ax1.plot(np.exp(d[0]), np.exp(d[1]), color='black')
+    ax1.plot(np.exp(d[0]), np.exp(mu[0]), color='red')
+    ax2.plot(np.exp(d[0]), (np.exp(d[1]) - np.exp(mu[0])), color='black')
+    ax1.set_xlim(np.exp([wave_lo,wave_hi]))
+    ax2.set_xlim(np.exp([wave_lo,wave_hi]))
+    ax2.set_xlabel(r'Wavelength $(\AA)$')
+    ax2.set_ylabel('(O - C)')
+    ax1.set_ylabel('Flux')
     

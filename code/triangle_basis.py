@@ -24,8 +24,10 @@ def unpack_pars(pars, n_ms, n_epoch):
 
 def xi_to_v(xi):
     # translate ln(wavelength) Doppler shift to a velocity in m/s
-    r = np.exp(2.*xi) # r = (c+v)/(c-v)
-    return c * (r - 1.)/(r + 1.)
+    return np.tanh(xi) * c
+ 
+def v_to_xi(v):
+    return np.arctanh(v/c)
     
 def g(xs, xms, del_x):
     # returns values of triangle components centered on xms at location xs
@@ -158,7 +160,7 @@ def save_plot(xs, obs, calc, resid, x_plot, calc_plot, save_name, i):
     plt.savefig(save_name)
 
 if __name__ == "__main__":
-    data_dir = '../data/halpha_quiet/'
+    data_dir = '../data/halpha/'
     
     print "Reading files..."
     filelist = glob.glob(data_dir+'*.txt')
@@ -209,7 +211,8 @@ if __name__ == "__main__":
         resid = resid_function(pars, xs, ys, yerrs, xms, del_x)
         n_x = len(xs[e])
         resid = resid[e*n_x:(e+1)*n_x] * yerrs[e]
-        #save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'fig/epoch'+str(e)+'.pdf', e)
+        if e == 0:
+            save_plot(xs[e], ys[e], calc, resid, x_plot, calc_plot, 'fig/epoch'+str(e)+'.pdf', e)
         calcs[e] = calc
         
         
@@ -218,8 +221,18 @@ if __name__ == "__main__":
     u.shape, s.shape, v.shape
     
     data_dir = "/Users/mbedell/Documents/Research/HARPSTwins/Results/"
-    pipeline = readsav(data_dir+'HIP54287_result.dat')
-    plt.scatter(pipeline.rv, u[:,0])
+    pipeline = readsav(data_dir+'HIP22263_result.dat')
+    plt.scatter((pipeline.rv-np.mean(pipeline.rv))*1.e3, u[:,0])
+    plt.xlabel('(Relative) Pipeline RV (m/s)')
+    plt.ylabel('First PCA Component')
+    plt.savefig('fig/halpha_rvpca.png')
+    plt.clf()
+    
+    plt.scatter((pipeline.shk), u[:,0])
+    plt.xlabel('SHK Index')
+    plt.ylabel('First PCA Component')
+    plt.savefig('fig/halpha_shkpca.png')
+    
     
     
 if False:
