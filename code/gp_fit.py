@@ -8,6 +8,7 @@ import cPickle as pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from scipy.linalg import svd
 from scipy.io.idl import readsav
 c = 2.99792458e8   # m/s
 
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     wave_lo = np.log(6553.)
     wave_hi = np.log(6573.)
     subset = []
-    subsample = 10 # int between 1 and len(data), smaller selects more epochs
+    subsample = 5 # int between 1 and len(data), smaller selects more epochs
     for i in range(0,len(data),subsample):
         m = (data[i][0] > wave_lo) & (data[i][0] < wave_hi)
         x = np.copy(data[i][0][m])
@@ -104,14 +105,17 @@ if __name__ == "__main__":
     xis0 = np.empty(len(subset))
     rvs = np.empty(len(subset))
     dates = np.empty(len(subset))
+    shks = np.empty(len(subset))
     for i in range(len(subset)):
         rvs[i] = pipeline.rv[i*subsample] * 1.e3
         xis0[i] = v_to_xi(rvs[i])
         dates[i] = pipeline.date[i*subsample]
+        shks[i] = pipeline.shk[i*subsample]
     
     #xis0 = np.zeros(len(subset))
     p0 = np.append(xis0, gp.get_parameter_vector())
-    bounds = [(-1e-3, 1e-3) for d in subset] + gp.get_parameter_bounds()
+    xi_bounds = [(-1e-16+xi, 1e-16+xi) for xi in xis0] # fixed RVs
+    bounds = xi_bounds + gp.get_parameter_bounds()
     soln = minimize(nll, p0, args=(subset), bounds=bounds, method='L-BFGS-B')
     scales, xis, y = set_params(soln.x, subset)
     
@@ -128,27 +132,64 @@ if __name__ == "__main__":
     print "Calculating model prediction..."
     mu = prediction(soln.x, subset)
     
-    fig,ax = plt.subplots(1,1,figsize=(12,4))
-    for i,d in enumerate(subset):
-        ax.plot(d[0], d[1], color='black')
-        ax.plot(d[0], mu[i], color='red')
-    ax.set_xlabel('ln(wavelength)')
-    ax.set_ylabel('ln(flux) - scale factor')
+    if False:
+        # make some plots    
+        fig,ax = plt.subplots(1,1,figsize=(12,4))
+        for i,d in enumerate(subset):
+            ax.plot(d[0], d[1], color='black')
+            ax.plot(d[0], mu[i], color='red')
+        ax.set_xlabel('ln(wavelength)')
+        ax.set_ylabel('ln(flux) - scale factor')
         
-    fig,ax = plt.subplots(1,1,figsize=(12,4))
-    for i,d in enumerate(subset):
-        ax.plot(d[0], (np.exp(d[1]) - np.exp(mu[i])) + 1000*i, color='black')
-    ax.set_xlabel('ln(wavelength)')
-    ax.set_ylabel('(O - C) + offset')
+        fig,ax = plt.subplots(1,1,figsize=(12,4))
+        for i,d in enumerate(subset):
+            ax.plot(d[0], (np.exp(d[1]) - np.exp(mu[i])) + 1000*i, color='black')
+        ax.set_xlabel('ln(wavelength)')
+        ax.set_ylabel('(O - C) + offset')
     
-    fig,(ax1,ax2) = plt.subplots(2,1,figsize=(12,8))
-    d = subset[0]
-    ax1.plot(np.exp(d[0]), np.exp(d[1]), color='black')
-    ax1.plot(np.exp(d[0]), np.exp(mu[0]), color='red')
-    ax2.plot(np.exp(d[0]), (np.exp(d[1]) - np.exp(mu[0])), color='black')
-    ax1.set_xlim(np.exp([wave_lo,wave_hi]))
-    ax2.set_xlim(np.exp([wave_lo,wave_hi]))
-    ax2.set_xlabel(r'Wavelength $(\AA)$')
-    ax2.set_ylabel('(O - C)')
-    ax1.set_ylabel('Flux')
+        fig,(ax1,ax2) = plt.subplots(2,1,figsize=(12,8))
+        d = subset[0]
+        ax1.plot(np.exp(d[0]), np.exp(d[1]), color='black')
+        ax1.plot(np.exp(d[0]), np.exp(mu[0]), color='red')
+        ax2.plot(np.exp(d[0]), (np.exp(d[1]) - np.exp(mu[0])), color='black')
+        ax1.set_xlim(np.exp([wave_lo,wave_hi]))
+        ax2.set_xlim(np.exp([wave_lo,wave_hi]))
+        ax2.set_xlabel(r'Wavelength $(\AA)$')
+        ax2.set_ylabel('(O - C)')
+        ax1.set_ylabel('Flux')
+    
+    if True:
+        # PCA time!
+        # ONLY WORKS IF ALL SPECTRA ARE THE SAME LENGTH
+        scaled_resids = np.empty((len(subset),len(subset[0][0])))
+        for i,s in enumerate(subset):
+            scaled_resids[i,:] = np.exp(s[1]/scales[i]) - np.exp(mu[i]/scales[i])
+        u, s, v = svd(scaled_resids, full_matrices=False)
+        u.shape, s.shape, v.shape
+        
+        plt.scatter(rvs-np.median(rvs), u[:,0], label='PCA 0')
+        plt.scatter(rvs-np.median(rvs), u[:,1], label='PCA 1')
+        plt.xlabel('(Relative) Pipeline RV (m/s)')
+        plt.ylabel('PCA Component Strength')
+        plt.legend()
+        plt.savefig('fig/gp_halpha_rvpca.png')
+        plt.clf()
+    
+        plt.scatter(shks, u[:,0], label='PCA 0')
+        plt.scatter(shks, u[:,1], label='PCA 1')
+        plt.xlabel('SHK Index')
+        plt.ylabel('PCA Component Strength')
+        plt.legend()
+        plt.savefig('fig/gp_halpha_shkpca.png')
+        plt.clf()
+        
+        wave = np.exp(subset[0][0])
+        plt.plot(wave, v[0,:], label='PCA 0')
+        plt.plot(wave, v[1,:], label='PCA 1')
+        plt.plot(wave, v[2,:], label='PCA 2')
+        plt.plot(wave, v[3,:], label='PCA 3')
+        plt.legend()
+        plt.savefig('fig/gp_halpha_pca.png')
+        
+        
     
