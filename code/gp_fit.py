@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy.linalg import svd
 from scipy.io.idl import readsav
+import time
 c = 2.99792458e8   # m/s
 
 def shift_and_flatten(xis, data):
@@ -78,6 +79,8 @@ def v_to_xi(v):
     
 if __name__ == "__main__":
     
+    start = time.time()
+    
     print "Reading in data..."
     data = pickle.load(open( "data.p", "rb" ))
     wave_lo = np.log(6553.)
@@ -113,13 +116,15 @@ if __name__ == "__main__":
         shks[i] = pipeline.shk[i*subsample]
     
     #xis0 = np.zeros(len(subset))
+    start_fit = time.time()
     p0 = np.append(xis0, gp.get_parameter_vector())
     xi_bounds = [(-1e-16+xi, 1e-16+xi) for xi in xis0] # fixed RVs
     bounds = xi_bounds + gp.get_parameter_bounds()
     soln = minimize(nll, p0, args=(subset), bounds=bounds, method='L-BFGS-B')
     scales, xis, y = set_params(soln.x, subset)
+    end_fit = time.time()
     
-    print "RVs =", xi_to_v(xis)
+    #print "RVs =", xi_to_v(xis)
     
     '''''
     fig,ax = plt.subplots(1,1,figsize=(12,4))
@@ -129,8 +134,27 @@ if __name__ == "__main__":
     ax.set_ylabel('ln(flux) - scale factor')
     '''
     
+    #now expand the wavelength region:
+    wave_lo = np.log(6520.)
+    wave_hi = np.log(6600.)
+    subset = []
+    subsample = 5 # int between 1 and len(data), smaller selects more epochs
+    for i in range(0,len(data),subsample):
+        m = (data[i][0] > wave_lo) & (data[i][0] < wave_hi)
+        x = np.copy(data[i][0][m])
+        y = np.log(np.copy(data[i][1][m]))
+        yerr = np.copy(data[i][2][m]/data[i][1][m])
+        subset.append((x,y,yerr))
+    scales, xis, y = set_params(soln.x, subset) 
+    
+    
     print "Calculating model prediction..."
     mu = prediction(soln.x, subset)
+    end = time.time()
+    
+    print "Time to fit: {0:.1f} s".format(end_fit - start_fit)
+    print "Time to predict: {0:.1f} s".format(end - end_fit)
+    print "Total time: {0:.1f} s".format(end - start)
     
     if False:
         # make some plots    
@@ -158,7 +182,7 @@ if __name__ == "__main__":
         ax2.set_ylabel('(O - C)')
         ax1.set_ylabel('Flux')
     
-    if True:
+    if False:
         # PCA time!
         # ONLY WORKS IF ALL SPECTRA ARE THE SAME LENGTH
         scaled_resids = np.empty((len(subset),len(subset[0][0])))
@@ -171,16 +195,18 @@ if __name__ == "__main__":
         plt.scatter(rvs-np.median(rvs), u[:,1], label='PCA 1')
         plt.xlabel('(Relative) Pipeline RV (m/s)')
         plt.ylabel('PCA Component Strength')
+        plt.ylim([-0.1,0.2])
         plt.legend()
-        plt.savefig('fig/gp_halpha_rvpca.png')
+        plt.savefig('fig/gp_hbeta_rvpca.png')
         plt.clf()
     
         plt.scatter(shks, u[:,0], label='PCA 0')
         plt.scatter(shks, u[:,1], label='PCA 1')
         plt.xlabel('SHK Index')
         plt.ylabel('PCA Component Strength')
+        plt.ylim([-0.1,0.2])
         plt.legend()
-        plt.savefig('fig/gp_halpha_shkpca.png')
+        plt.savefig('fig/gp_hbeta_shkpca.png')
         plt.clf()
         
         wave = np.exp(subset[0][0])
@@ -189,7 +215,9 @@ if __name__ == "__main__":
         plt.plot(wave, v[2,:], label='PCA 2')
         plt.plot(wave, v[3,:], label='PCA 3')
         plt.legend()
-        plt.savefig('fig/gp_halpha_pca.png')
+        plt.savefig('fig/gp_hbeta_pca.png')
+        
+        
         
         
     

@@ -14,8 +14,8 @@ c = 2.99792458e8   # m/s
 if __name__ == "__main__":
     data_dir = "/Users/mbedell/Documents/Research/HARPSTwins/Results/"
     s = readsav(data_dir+'HIP22263_result.dat')
-    wave_lo = 6244.0
-    wave_hi = 6249.0
+    wave_lo = 6500.0
+    wave_hi = 6600.0
         
     print "Reading files..."
     filelist = [str.replace(f, 'ccf_G2', 's1d') for f in s.files]
