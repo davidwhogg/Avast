@@ -16,16 +16,16 @@ if __name__ == "__main__":
     # BUGS: directories and dependencies will only work on Megan's computer...
    
     data_dir = "/Users/mbedell/Documents/Research/HARPSTwins/Results/"
-    s = readsav(data_dir+'HIP54287_result.dat')
+    s = readsav(data_dir+'HIP30037_result.dat')
     Star = rv_model.RV_Model()
 
     # grab a tellurics section from s1d files
-    true_rvs = ( -s.berv + s.rv - 54.9) * 1.e3  # m/s
+    true_rvs = ( -s.berv + s.rv) * 1.e3  # m/s
     #true_rvs = (s.rv - 54.9) * 1.e3 
     drift = s.drift # m/s
     dx = 0.01 # A
     #xs = np.arange(4998.0, 5002.0, dx)
-    xs = np.arange(5910.0, 5925.0, dx) # tellurics region
+    xs = np.arange(3782.0, 6910.0, dx) # tellurics region
     N = len(s.files)  # number of epochs
     M = len(xs)
     data = np.empty((N, M))
@@ -37,13 +37,14 @@ if __name__ == "__main__":
             # re-introduce barycentric velocity
             wave *= doppler(b*1.e3)
             # remove systemic RV shift so we're looking at the same lines as example
-            wave *= doppler(54.9 * 1.e3)
+            #wave *= doppler(54.9 * 1.e3)
             # save the relevant bit
             f = interp1d(wave, spec)
             data[n,:] = f(xs)
             ivars[n,:] = snr**2
+            print wave[0], wave[-1]
             
-    h = h5py.File('../data/hip54287.hdf5', 'w')
+    h = h5py.File('../data/hip30037.hdf5', 'w')
     dset = h.create_dataset('data', data=data)
     dset = h.create_dataset('ivars', data=ivars)
     dset = h.create_dataset('xs', data=xs)
